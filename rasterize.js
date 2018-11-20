@@ -7,40 +7,8 @@ const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in 
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog4/triangles.json"; // triangles file loc
 const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog4/spheres.json"; // spheres file loc
 const BASE_URL = "https://ncsucgclass.github.io/prog4/";
-const positions = [
-  // Front face
-  -1.0, -1.0,  1.0,
-   1.0, -1.0,  1.0,
-   1.0,  1.0,  1.0,
-  -1.0,  1.0,  1.0,
-  // Back face
-  -1.0, -1.0, -1.0,
-  -1.0,  1.0, -1.0,
-   1.0,  1.0, -1.0,
-   1.0, -1.0, -1.0,\
-  // Top face
-  -1.0,  1.0, -1.0,
-  -1.0,  1.0,  1.0,
-   1.0,  1.0,  1.0,
-   1.0,  1.0, -1.0,
-  // Bottom face
-  -1.0, -1.0, -1.0,
-   1.0, -1.0, -1.0,
-   1.0, -1.0,  1.0,
-  -1.0, -1.0,  1.0,
-  // Right face
-   1.0, -1.0, -1.0,
-   1.0,  1.0, -1.0,
-   1.0,  1.0,  1.0,
-   1.0, -1.0,  1.0,
-  // Left face
-  -1.0, -1.0, -1.0,
-  -1.0, -1.0,  1.0,
-  -1.0,  1.0,  1.0,
-  -1.0,  1.0, -1.0,
-];
 var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
-var inputTriangles;
+//var inputTriangles;
 var triangles = [];
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -99,6 +67,69 @@ var mMatrixUniformLoc;
 var pvmMatrixUniformLoc;
 
 var currModelIndex = null;
+
+const cube = [
+    // Front face
+    [-1.0, -1.0,  1.0],
+     [1.0, -1.0,  1.0],
+     [1.0,  1.0,  1.0],
+    [-1.0,  1.0,  1.0],
+
+    // Back face
+    [-1.0, -1.0, -1.0],
+    [-1.0,  1.0, -1.0],
+     [1.0,  1.0, -1.0],
+     [1.0, -1.0, -1.0],
+
+    // Top face
+    [-1.0,  1.0, -1.0],
+    [-1.0,  1.0,  1.0],
+     [1.0,  1.0,  1.0],
+     [1.0,  1.0, -1.0],
+
+    // Bottom face
+    [-1.0, -1.0, -1.0],
+    [ 1.0, -1.0, -1.0],
+    [ 1.0, -1.0,  1.0],
+    [-1.0, -1.0,  1.0],
+
+    // Right face
+     [1.0, -1.0, -1.0],
+     [1.0,  1.0, -1.0],
+     [1.0,  1.0,  1.0],
+     [1.0, -1.0,  1.0],
+
+    // Left face
+    [-1.0, -1.0, -1.0],
+    [-1.0, -1.0,  1.0],
+    [-1.0,  1.0,  1.0],
+    [-1.0,  1.0, -1.0],
+  ];
+const normals = [
+	[0, 0, -1], [0, 0,-1], [0, 0,-1], // front
+	[0, 0, 1], [0, 0, 1], [0, 0, 1], //back
+	[0, 0, -1], [0, 0,-1], [0, 0,-1], //
+	[0, 0, -1], [0, 0,-1], [0, 0,-1],
+	[0, 0, -1], [0, 0,-1], [0, 0,-1],
+	[0, 0, -1], [0, 0,-1], [0, 0,-1],
+]
+var inputTriangles = [
+  {
+    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,0.3,0.3], "n": 11, "alpha": 0.9, "texture": "abe.png"}, 
+    "vertices": cube,
+    "normals": [[0, 0, -1],[0, 0,-1],[0, 0,-1]],
+    "uvs": [[0,0], [0.5,1], [1,0]],
+    "triangles": [
+    [0,  1,  2],      [0,  2,  3],    // front
+    [4,  5,  6],      [4,  6,  7],    // back
+    [8,  9,  10],     [8,  10, 11],   // top
+    [12, 13, 14],     [12, 14, 15],   // bottom
+    [16, 17, 18],     [16, 18, 19],   // right
+    [20, 21, 22],     [20, 22, 23],   // left
+	]
+  }
+];
+
 
 // ASSIGNMENT HELPER FUNCTIONS
 
@@ -299,7 +330,6 @@ function setupWebGL() {
 
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
-    inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
     if (inputTriangles != String.null) {
         var whichSetVert; // index of vertex in current triangle set
         var whichSetTri; // index of triangle in current triangle set
@@ -308,6 +338,75 @@ function loadTriangles() {
         if (numSets > 0)
             currModelIndex = 0;
 		for (var whichSet=0; whichSet < inputTriangles.length; whichSet++) {
+            /*
+            // ************************************************************************
+            var currSet = inputTriangles[whichSet];
+            for (var triangle = 0; triangle < currSet.triangles.length; triangle++){
+                var coordArray = []; // 1D array of vertex coords for WebGL
+                var indexArray = []; // 1D array of vertex indices for triangles
+                var normalArray = [];
+                var uvsArray = [];
+                var tri = vec3.create();
+                triangles.push(new Object());
+
+                //triBufferSize[whichSet] = 0;
+
+    			// initialize initial translation, rotation, scale values
+    			triangles[triangle].scale = vec3.create();
+    			triangles[triangle].translation = vec3.fromValues(0,0,0);
+    			triangles[triangle].xAxis = vec3.fromValues(1,0,0);
+    			triangles[triangle].yAxis = vec3.fromValues(0,1,0);
+    			triangles[triangle].zAxis = vec3.fromValues(0,0,1);
+    			triangles[triangle].center = vec3.create();
+                triangles[triangle].highlight = false;
+
+                // set up the vertex coord array
+                for (whichSetVert=0; whichSetVert<currSet.triangles[triangle].length; whichSetVert++){
+
+                    var vtx = currSet.vertices[currSet.triangles[triangle][whichSetVert]];
+                    var normalToAdd = currSet.normals[currSet.triangles[triangle][whichSetVert]];
+                    var uvsToAdd = currSet.uvs[currSet.triangles[triangle][whichSetVert]]
+
+    				coordArray = coordArray.concat(vtx);
+                    normalArray = normalArray.concat(normalToAdd);
+                    uvsArray = uvsArray.concat(uvsToAdd)
+    				vec3.add(triangles[triangle].center, triangles[triangle].center, vtx);
+                }
+    			vec3.scale(triangles[triangle].center,triangles[triangle].center,1/3);
+                // set up the triangle indicies array
+    			for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
+                    indexArray = indexArray.concat(inputTriangles[whichSet].triangles[whichSetTri]);
+                }
+
+
+                triBufferSize[triangle] = 3; // total number of indices
+
+                inputTriangles[whichSet].coordArray = coordArray;
+                inputTriangles[whichSet].normalArray = normalArray;
+                inputTriangles[whichSet].uvsArray = uvsArray;
+                inputTriangles[whichSet].indexArray = indexArray;
+                inputTriangles[whichSet].triBufferSize = triBufferSize;
+
+                // send the vertex coords to webGL
+                inputTriangles[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+                gl.bindBuffer(gl.ARRAY_BUFFER,inputTriangles[whichSet].vertexBuffer); // activate that buffer
+                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
+
+                // send normals to webGL
+                inputTriangles[whichSet].normalBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].normalBuffer); // activate that buffer
+                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
+
+                inputTriangles[whichSet].textureBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].textureBuffer); // activate that buffer
+                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].uvsArray),gl.STATIC_DRAW);
+
+        		// send the triangle coords to webGL
+                inputTriangles[whichSet].triangleBuffer = gl.createBuffer(); // init empty vertex coord buffer
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, inputTriangles[whichSet].triangleBuffer); // activate that buffer
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].indexArray),gl.STATIC_DRAW); // coords to that buffer
+            }
+                */
 
                 var coordArray = []; // 1D array of vertex coords for WebGL
                 var indexArray = []; // 1D array of vertex indices for triangles
@@ -375,6 +474,69 @@ function loadTriangles() {
                     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
                 }
 
+            //*****************************
+            /*
+            var coordArray = []; // 1D array of vertex coords for WebGL
+            var indexArray = []; // 1D array of vertex indices for triangles
+            var normalArray = [];
+            var uvsArray = [];
+            var tri = vec3.create();
+
+            triBufferSize[whichSet] = 0;
+
+			// initialize initial translation, rotation, scale values
+			inputTriangles[whichSet].scale = vec3.create();
+			inputTriangles[whichSet].translation = vec3.fromValues(0,0,0);
+			inputTriangles[whichSet].xAxis = vec3.fromValues(1,0,0);
+			inputTriangles[whichSet].yAxis = vec3.fromValues(0,1,0);
+			inputTriangles[whichSet].zAxis = vec3.fromValues(0,0,1);
+			inputTriangles[whichSet].center = vec3.create();
+            inputTriangles[whichSet].highlight = false;
+
+            // set up the vertex coord array
+            for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
+                var vtx = inputTriangles[whichSet].vertices[whichSetVert]
+				coordArray = coordArray.concat(vtx);
+                normalArray = normalArray.concat(inputTriangles[whichSet].normals[whichSetVert]);
+                uvsArray = uvsArray.concat(inputTriangles[whichSet].uvs[whichSetVert])
+				vec3.add(inputTriangles[whichSet].center, inputTriangles[whichSet].center, vtx);
+            }
+			vec3.scale(inputTriangles[whichSet].center,inputTriangles[whichSet].center,1/inputTriangles[whichSet].vertices.length);
+            // set up the triangle indicies array
+			for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
+                indexArray = indexArray.concat(inputTriangles[whichSet].triangles[whichSetTri]);
+            }
+
+            //vertexBufferSize += inputTriangles[whichSet].vertices.length;
+			triBufferSize[whichSet] += inputTriangles[whichSet].triangles.length; // number of triangles
+
+            triBufferSize[whichSet] *= 3; // total number of indices
+
+            inputTriangles[whichSet].coordArray = coordArray;
+            inputTriangles[whichSet].normalArray = normalArray;
+            inputTriangles[whichSet].uvsArray = uvsArray;
+            inputTriangles[whichSet].indexArray = indexArray;
+            inputTriangles[whichSet].triBufferSize = triBufferSize;
+
+            // send the vertex coords to webGL
+            inputTriangles[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+            gl.bindBuffer(gl.ARRAY_BUFFER,inputTriangles[whichSet].vertexBuffer); // activate that buffer
+            gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
+
+            // send normals to webGL
+            inputTriangles[whichSet].normalBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].normalBuffer); // activate that buffer
+            gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
+
+            inputTriangles[whichSet].textureBuffer = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].textureBuffer); // activate that buffer
+            gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].uvsArray),gl.STATIC_DRAW);
+
+    		// send the triangle coords to webGL
+            inputTriangles[whichSet].triangleBuffer = gl.createBuffer(); // init empty vertex coord buffer
+            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, inputTriangles[whichSet].triangleBuffer); // activate that buffer
+            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].indexArray),gl.STATIC_DRAW); // coords to that buffer
+            */
         } // end for each triangle set
 
     } // end if triangles found
@@ -651,10 +813,20 @@ function loadTextures(){
     function loadTexture(filename){
         const texture = gl.createTexture();
         //gl.bindTexture(gl.TEXTURE_2D, texture);
-
-
+		const level = 0;
+		  const internalFormat = gl.RGBA;
+		  const width = 1;
+		  const height = 1;
+		  const border = 0;
+		  const srcFormat = gl.RGBA;
+		  const srcType = gl.UNSIGNED_BYTE;
+		  const pixel = new Uint8Array([0, 0, 255, 255]);  // opaque blue
+		  gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+						width, height, border, srcFormat, srcType,
+						pixel);
+		
           //gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,width, height, border, srcFormat, srcType,pixel);
-        const image = new Image();
+        /*const image = new Image();
         image.crossOrigin = "Anonymous";
         image.onload = (() => {
             gl.bindTexture(gl.TEXTURE_2D, texture);
@@ -673,7 +845,7 @@ function loadTextures(){
                gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             }
         });
-        image.src = BASE_URL + filename;
+        image.src = BASE_URL + filename;*/
         return texture;
     }
     const level = 0;
