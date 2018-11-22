@@ -106,19 +106,25 @@ const cube = [
     [-1.0,  1.0, -1.0],
   ];
 const normals = [
-	[0, 0, -1], [0, 0,-1], [0, 0,-1], // front
-	[0, 0, 1], [0, 0, 1], [0, 0, 1], //back
-	[0, 0, -1], [0, 0,-1], [0, 0,-1], //
-	[0, 0, -1], [0, 0,-1], [0, 0,-1],
-	[0, 0, -1], [0, 0,-1], [0, 0,-1],
-	[0, 0, -1], [0, 0,-1], [0, 0,-1],
+	[0, 0, -1], [0, 0,-1], [0, 0,-1], [0, 0,-1], // front
+	[0, 0, 1], [0, 0, 1], [0, 0, 1],[0, 0, 1], //back
+	[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0],// top
+	[0, -1, 0], [0, -1,0], [0, -1,0], [0, -1,0],//bottom
+	[1, 0, 0], [1, 0,0], [1, 0,0], [1, 0,0],  // right
+	[-1, 0, 0], [-1, 0,0], [-1, 0,0],[-1, 0,0]// left
 ]
 var inputTriangles = [
   {
-    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,0.3,0.3], "n": 11, "alpha": 0.9, "texture": "abe.png"}, 
+    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,0.3,0.3], "n": 11, "alpha": 0.9, "texture": "abe.png"},
     "vertices": cube,
-    "normals": [[0, 0, -1],[0, 0,-1],[0, 0,-1]],
-    "uvs": [[0,0], [0.5,1], [1,0]],
+    "normals": normals,
+    "uvs": [[0,0], [0,1], [1,1], [1,0],
+            [0,0], [0,1], [1,1], [1,0],
+            [0,0], [0,1], [1,1], [1,0],
+            [0,0], [0,1], [1,1], [1,0],
+            [0,0], [0,1], [1,1], [1,0],
+            [0,0], [0,1], [1,1], [1,0]
+        ],
     "triangles": [
     [0,  1,  2],      [0,  2,  3],    // front
     [4,  5,  6],      [4,  6,  7],    // back
@@ -292,21 +298,21 @@ function handleKeyDown(event){
 
 // set up the webGL environment
 function setupWebGL() {
-	
-	
+
+
 	document.onkeydown = handleKeyDown; // call this when key pressed
 	 // Get the image canvas, render an image in it
      var imageCanvas = document.getElementById("myImageCanvas"); // create a 2d canvas
-      var cw = imageCanvas.width, ch = imageCanvas.height; 
-      imageContext = imageCanvas.getContext("2d"); 
-      var bkgdImage = new Image(); 
+      var cw = imageCanvas.width, ch = imageCanvas.height;
+      imageContext = imageCanvas.getContext("2d");
+      var bkgdImage = new Image();
       bkgdImage.crossOrigin = "Anonymous";
       bkgdImage.src = "https://ncsucgclass.github.io/prog4/sky.jpg";
       bkgdImage.onload = function(){
           var iw = bkgdImage.width, ih = bkgdImage.height;
-          imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);   
+          imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);
      } // end onload callback
-    
+
      // create a webgl canvas and set it up
      var webGLCanvas = document.getElementById("myWebGLCanvas"); // create a webgl canvas
      gl = webGLCanvas.getContext("webgl"); // get a webgl object from it
@@ -330,6 +336,7 @@ function setupWebGL() {
 
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
+    //inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
     if (inputTriangles != String.null) {
         var whichSetVert; // index of vertex in current triangle set
         var whichSetTri; // index of triangle in current triangle set
@@ -439,7 +446,6 @@ function loadTriangles() {
                 for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
                     indexArray = indexArray.concat(inputTriangles[whichSet].triangles[whichSetTri]);
                 }
-
                 //vertexBufferSize += inputTriangles[whichSet].vertices.length;
     			triBufferSize[whichSet] += inputTriangles[whichSet].triangles.length; // number of triangles
 
@@ -592,11 +598,11 @@ function setupShaders() {
 			vec3 H = normalize(abs(l + V));
             specFactor = pow(max(0.0, dot(n,H)), uN);
             vec3 specular = uSpecular * uSpecularLight * specFactor;
-			
+
 			if (uLighting){
 				gl_FragColor = vec4(fragColor.rgb * (ambient + diffuse + specular), fragColor.a * alpha);
 			} else {
-				
+
 				gl_FragColor = vec4(fragColor.rgb, fragColor.a);
 			}
 		}
@@ -705,8 +711,7 @@ function renderTriangles() {
 		// move model to center
 		mat4.fromTranslation(model.mMatrix,vec3.negate(vec3.create(),model.center));
 
-		//vec3.normalize(z, vec3.cross(z,model.yAxis,model.xAxis));
-		
+
         if (model.highlight){
             mat4.multiply(model.mMatrix, mat4.fromScaling(pos, vec3.fromValues(1.2, 1.2, 1.2)), model.mMatrix);
         }
@@ -756,12 +761,11 @@ function renderTriangles() {
         }
 
     }
-	
+
 	render_triangles.sort((x,y) => {
 		return y.depth - x.depth;
 	});
-	
-	//console.log(render_triangles);
+
     for ( var i = 0; i < render_triangles.length; i++){
         let currSet = inputTriangles[render_triangles[i]['setIndex']];
         if (currSet.material.alpha !== undefined && currSet.material.alpha < 1){
@@ -797,6 +801,7 @@ function renderTriangles() {
             gl.drawElements(gl.TRIANGLES,3,gl.UNSIGNED_SHORT,0); // render
         }
 		*/
+
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, currSet.triangleBuffer[render_triangles[i]['triangleIndex']]);
         gl.drawElements(gl.TRIANGLES,3,gl.UNSIGNED_SHORT,0); // render
     }
@@ -824,7 +829,7 @@ function loadTextures(){
 		  gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
 						width, height, border, srcFormat, srcType,
 						pixel);
-		
+
           //gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,width, height, border, srcFormat, srcType,pixel);
         /*const image = new Image();
         image.crossOrigin = "Anonymous";
@@ -866,7 +871,7 @@ function loadTextures(){
 
 function main() {
   //document.onkeydown = handleKeyDown;
-  
+
   setupWebGL(); // set up the webGL environment
   loadTriangles(); // load in the triangles from tri file
   loadTextures();
