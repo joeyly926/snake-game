@@ -7,8 +7,8 @@ const WIN_BOTTOM = 0; const WIN_TOP = 1;  // default top and bottom y coords in 
 const INPUT_TRIANGLES_URL = "https://ncsucgclass.github.io/prog4/triangles.json"; // triangles file loc
 const INPUT_SPHERES_URL = "https://ncsucgclass.github.io/prog4/spheres.json"; // spheres file loc
 const BASE_URL = "https://ncsucgclass.github.io/prog4/";
-var Eye = new vec4.fromValues(0.5,0.5,-0.5,1.0); // default eye position in world space
-//var inputTriangles;
+var Eye = new vec4.fromValues(0.5,0.5,-10,1.0); // default eye position in world space
+//var snake;
 var triangles = [];
 /* webgl globals */
 var gl = null; // the all powerful gl object. It's all here folks!
@@ -24,8 +24,15 @@ var vertexPositionAttrib; // where to put position for vertex shader
 var vertexNormalAttrib;
 var textureCoordAttribute
 var numSets;
+var continuousAdd = false;
 
-var eye = vec3.fromValues(0.5,0.5,-0.5);
+var speed = 0.25
+const PLAYER = 0;
+const EMPTY = -1;
+const FOOD = 1;
+const WALL = 2;
+
+var eye = vec3.fromValues(0.0,0.0,-5.0);
 var center = vec3.fromValues(0.5,0.5,0.0);
 var up = vec3.fromValues(0,1,0);
 var right = vec3.fromValues(1,0,0);
@@ -42,7 +49,7 @@ var viewDelta = Math.PI/180;
 var lightAmbient = vec3.fromValues(1,1,1);
 var lightDiffuse = vec3.fromValues(1,1,1);
 var lightSpecular = vec3.fromValues(1,1,1);
-var lightPosition = vec3.fromValues(-3,1,-0.5);
+var lightPosition = vec3.fromValues(-3,-1,-2.0);
 var lightOn = true;
 
 var eyePositionUniformLoc;
@@ -58,6 +65,9 @@ var specularUniformLoc;
 var alphaUniformLoc;
 var nUniformLoc;
 var lightOnUniformLoc;
+var texturedUniformLoc;
+
+
 
 var colorSamplerUniformLoc;
 
@@ -68,44 +78,49 @@ var pvmMatrixUniformLoc;
 
 var currModelIndex = null;
 
-const cube = [
+var grid;
+var gridSize = 32;
+
+var offset = -16.0;
+
+const cube_vertices = [
     // Front face
-    [-1.0, -1.0,  1.0],
-     [1.0, -1.0,  1.0],
-     [1.0,  1.0,  1.0],
-    [-1.0,  1.0,  1.0],
+    [0.0, 0.0,  0.0],
+     [0.25, 0.0, 0.0],
+     [0.25,  0.25,  0.0],
+    [ 0.0,  0.25,  0.0],
 
     // Back face
-    [-1.0, -1.0, -1.0],
-    [-1.0,  1.0, -1.0],
-     [1.0,  1.0, -1.0],
-     [1.0, -1.0, -1.0],
+    [0.0, 0.0, -0.25],
+    [0.0,  0.25, -0.25],
+     [0.25,  0.25, -0.25],
+     [0.25, 0.0, -0.25],
 
     // Top face
-    [-1.0,  1.0, -1.0],
-    [-1.0,  1.0,  1.0],
-     [1.0,  1.0,  1.0],
-     [1.0,  1.0, -1.0],
+    [0.0,  0.25, 0.0],
+    [0.0,  0.25, -0.25],
+     [0.25,  0.25, -0.25],
+     [0.25,  0.25, 0.0],
 
     // Bottom face
-    [-1.0, -1.0, -1.0],
-    [ 1.0, -1.0, -1.0],
-    [ 1.0, -1.0,  1.0],
-    [-1.0, -1.0,  1.0],
+    [0.0, 0.0, 0.0],
+    [ 0.25, 0.0, 0.0],
+    [ 0.25, 0.0, -0.25],
+    [0.0, 0.0,  -0.25],
 
     // Right face
-     [1.0, -1.0, -1.0],
-     [1.0,  1.0, -1.0],
-     [1.0,  1.0,  1.0],
-     [1.0, -1.0,  1.0],
+     [0.25, 0.0, 0.0],
+     [0.25,  0.25, 0.0],
+     [0.25,  0.25,  -0.25],
+     [0.25, 0.0,  -0.25],
 
     // Left face
-    [-1.0, -1.0, -1.0],
-    [-1.0, -1.0,  1.0],
-    [-1.0,  1.0,  1.0],
-    [-1.0,  1.0, -1.0],
+    [0.0, 0.0, 0.0],
+    [0.0, 0.0, -0.25],
+    [0.0,  0.25, -0.25],
+    [0.0,  0.25, 0.0],
   ];
-const normals = [
+const cube_normals = [
 	[0, 0, -1], [0, 0,-1], [0, 0,-1], [0, 0,-1], // front
 	[0, 0, 1], [0, 0, 1], [0, 0, 1],[0, 0, 1], //back
 	[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0],// top
@@ -113,29 +128,123 @@ const normals = [
 	[1, 0, 0], [1, 0,0], [1, 0,0], [1, 0,0],  // right
 	[-1, 0, 0], [-1, 0,0], [-1, 0,0],[-1, 0,0]// left
 ]
-var inputTriangles = [
-  {
-    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,0.3,0.3], "n": 11, "alpha": 0.9, "texture": "abe.png"},
-    "vertices": cube,
-    "normals": normals,
-    "uvs": [[0,0], [0,1], [1,1], [1,0],
-            [0,0], [0,1], [1,1], [1,0],
-            [0,0], [0,1], [1,1], [1,0],
-            [0,0], [0,1], [1,1], [1,0],
-            [0,0], [0,1], [1,1], [1,0],
-            [0,0], [0,1], [1,1], [1,0]
-        ],
-    "triangles": [
-    [0,  1,  2],      [0,  2,  3],    // front
-    [4,  5,  6],      [4,  6,  7],    // back
-    [8,  9,  10],     [8,  10, 11],   // top
-    [12, 13, 14],     [12, 14, 15],   // bottom
-    [16, 17, 18],     [16, 18, 19],   // right
-    [20, 21, 22],     [20, 22, 23],   // left
-	]
-  }
+
+var uvs = [[0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0]
+    ];
+var cube_triangles = [
+[0,  1,  2],      [0,  2,  3],    // front
+[4,  5,  6],      [4,  6,  7],    // back
+[8,  9,  10],     [8,  10, 11],   // top
+[12, 13, 14],     [12, 14, 15],   // bottom
+[16, 17, 18],     [16, 18, 19],   // right
+[20, 21, 22],     [20, 22, 23],   // left
 ];
 
+const wall_vertices = [
+    // Front face
+  [-8.0, 0.0,  0.0],
+   [8.0, 0.0,  0.0],
+   [8.0,  0.25,  0.0],
+  [-8.0,  0.25,  0.0],
+
+  // Back face
+  [-8.0, 0.0, -0.25],
+  [-8.0,  0.25, -0.25],
+   [8.0,  0.25, -0.25],
+   [8.0, 0.0, -0.25],
+
+  // Top face
+  [-8.0,  0.25, -0.25],
+  [-8.0,  0.25,  0.0],
+   [8.0,  0.25,  0.0],
+   [8.0,  0.25, -0.25],
+
+  // Bottom face
+  [-8.0, 0.0, -0.25],
+   [8.0, 0.0, -0.25],
+   [8.0, 0.0,  0.0],
+  [-8.0, 0.0,  0.0],
+
+  // Right face
+   [8.0, 0.0, -0.25],
+   [8.0,  0.25, -0.25],
+   [8.0,  0.25,  0.0],
+   [8.0, 0.0,  0.0],
+
+  // Left face
+  [-8.0, 0.0, -0.25],
+  [-8.0, 0.0,  0.0],
+  [-8.0,  0.25,  0.0],
+  [-8.0,  0.25, -0.25],
+  ];
+
+const wall_normals = [
+	[0, 0, -1], [0, 0,-1], [0, 0,-1], [0, 0,-1], // front
+	[0, 0, 1], [0, 0, 1], [0, 0, 1],[0, 0, 1], //back
+	[0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 1, 0],// top
+	[0, -1, 0], [0, -1,0], [0, -1,0], [0, -1,0],//bottom
+	[1, 0, 0], [1, 0,0], [1, 0,0], [1, 0,0],  // right
+	[-1, 0, 0], [-1, 0,0], [-1, 0,0],[-1, 0,0]// left
+]
+
+var wall_uvs = [
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0],
+        [0,0], [0,1], [1,1], [1,0]
+    ];
+var wall_triangles = [
+[0,  1,  2],      [0,  2,  3],    // front
+[4,  5,  6],      [4,  6,  7],    // back
+[8,  9,  10],     [8,  10, 11],   // top
+[12, 13, 14],     [12, 14, 15],   // bottom
+[16, 17, 18],     [16, 18, 19],   // right
+[20, 21, 22],     [20, 22, 23],   // left
+];
+
+var cube = {
+  "material": {"ambient": [0.1,0.1,0.1], "diffuse": [0.0, 1.0, 0.0], "specular": [0.3,1.0,0.3], "n": 1, "alpha": 1.0, "texture": ""},
+  "vertices": cube_vertices,
+  "normals": cube_normals,
+  "uvs": uvs,
+  "triangles": cube_triangles,
+  "textured": true
+};
+
+var wall = {
+    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,1.0,0.3], "n": 1, "alpha": 1.0, "texture": ""},
+    "vertices": wall_vertices,
+    "normals": wall_normals,
+    "uvs": wall_uvs,
+    "triangles": wall_triangles,
+    "textured": false
+}
+
+var snake = [clone(cube)];
+var food = [];
+var walls = [clone(wall), clone(wall), clone(wall), clone(wall)];
+
+var snakeDir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), "UP":vec3.fromValues(0,1,0), "DOWN":vec3.fromValues(0,-1,0)};
+var currDir = snakeDir.RIGHT;
+
+var snakeInterval;
+
+
+function clone(obj) {
+    if (null == obj || "object" != typeof obj) return obj;
+    var copy = obj.constructor();
+    for (var attr in obj) {
+        if (obj.hasOwnProperty(attr)) copy[attr] = obj[attr];
+    }
+    return copy;
+}
 
 // ASSIGNMENT HELPER FUNCTIONS
 
@@ -189,16 +298,20 @@ function handleKeyDown(event){
     switch(event.key){
         // change view
         case "w":
-			vec3.add(eye,eye,vec3.scale(temp,lookUp,viewDelta));
+			//vec3.add(eye,eye,vec3.scale(temp,lookUp,viewDelta));
+            currDir = snakeDir.UP;
             break;
         case "a":
-			vec3.add(eye,eye,vec3.scale(temp,viewRight,-viewDelta));
+			//vec3.add(eye,eye,vec3.scale(temp,viewRight,-viewDelta));
+            currDir = snakeDir.LEFT;
             break;
         case "s":
-			vec3.add(eye,eye,vec3.scale(temp,lookUp,-viewDelta));
+			//vec3.add(eye,eye,vec3.scale(temp,lookUp,-viewDelta));
+            currDir = snakeDir.DOWN;
             break;
         case "d":
-			vec3.add(eye,eye,vec3.scale(temp,viewRight,viewDelta));
+			//vec3.add(eye,eye,vec3.scale(temp,viewRight,viewDelta));
+            currDir = snakeDir.RIGHT;
             break;
         case "W":
             vec3.rotateX(lookAt, lookAt, eye, -viewDelta);
@@ -218,73 +331,73 @@ function handleKeyDown(event){
 
         // select model
         case "ArrowLeft":
-            currModelIndex = (currModelIndex - 1 + inputTriangles.length) % inputTriangles.length;
+            currModelIndex = (currModelIndex - 1 + snake.length) % snake.length;
             break;
         case "ArrowRight":
-            currModelIndex = (currModelIndex + 1) % inputTriangles.length;
+            currModelIndex = (currModelIndex + 1) % snake.length;
             break;
         case " ":
-            inputTriangles[currModelIndex].highlight = !inputTriangles[currModelIndex].highlight;
+            //snake[currModelIndex].highlight = !snake[currModelIndex].highlight;
+            continuousAdd = !continuousAdd;
             break;
 
         // change lighting
         case "b":
             lightOn = !lightOn;
-			console.log(lightOn);
             break;
         case "n":
-            inputTriangles[currModelIndex].material.n = (inputTriangles[currModelIndex].material.n + 1) % 21;
+            snake[currModelIndex].material.n = (snake[currModelIndex].material.n + 1) % 21;
             break;
         case "1":
-            inputTriangles[currModelIndex].material.ambient[0] = (inputTriangles[currModelIndex].material.ambient[0] + 0.10).toFixed(2) % 1.1;
-            inputTriangles[currModelIndex].material.ambient[1] = (inputTriangles[currModelIndex].material.ambient[1] + 0.10).toFixed(2) % 1.1;
-            inputTriangles[currModelIndex].material.ambient[2] = (inputTriangles[currModelIndex].material.ambient[2] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.ambient[0] = (snake[currModelIndex].material.ambient[0] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.ambient[1] = (snake[currModelIndex].material.ambient[1] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.ambient[2] = (snake[currModelIndex].material.ambient[2] + 0.10).toFixed(2) % 1.1;
             break;
         case "2":
-            inputTriangles[currModelIndex].material.diffuse[0] = (inputTriangles[currModelIndex].material.diffuse[0] + 0.10).toFixed(2) % 1.1;
-            inputTriangles[currModelIndex].material.diffuse[1] = (inputTriangles[currModelIndex].material.diffuse[1] + 0.10).toFixed(2) % 1.1;
-            inputTriangles[currModelIndex].material.diffuse[2] = (inputTriangles[currModelIndex].material.diffuse[2] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.diffuse[0] = (snake[currModelIndex].material.diffuse[0] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.diffuse[1] = (snake[currModelIndex].material.diffuse[1] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.diffuse[2] = (snake[currModelIndex].material.diffuse[2] + 0.10).toFixed(2) % 1.1;
             break;
         case "3":
-            inputTriangles[currModelIndex].material.specular[0] = (inputTriangles[currModelIndex].material.specular[0] + 0.10).toFixed(2) % 1.1;
-            inputTriangles[currModelIndex].material.specular[1] = (inputTriangles[currModelIndex].material.specular[1] + 0.10).toFixed(2) % 1.1;
-            inputTriangles[currModelIndex].material.specular[2] = (inputTriangles[currModelIndex].material.specular[2] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.specular[0] = (snake[currModelIndex].material.specular[0] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.specular[1] = (snake[currModelIndex].material.specular[1] + 0.10).toFixed(2) % 1.1;
+            snake[currModelIndex].material.specular[2] = (snake[currModelIndex].material.specular[2] + 0.10).toFixed(2) % 1.1;
             break;
         case "k":
-            vec3.add(inputTriangles[currModelIndex].translation, inputTriangles[currModelIndex].translation, vec3.scale(temp, right, viewDelta));
+            vec3.add(snake[currModelIndex].translation, snake[currModelIndex].translation, vec3.scale(temp, right, speed));
             break;
         case ";":
-            vec3.add(inputTriangles[currModelIndex].translation, inputTriangles[currModelIndex].translation, vec3.scale(temp, right, -viewDelta));
+            vec3.add(snake[currModelIndex].translation, snake[currModelIndex].translation, vec3.scale(temp, right, -speed));
             break;
         case "o":
-            vec3.add(inputTriangles[currModelIndex].translation, inputTriangles[currModelIndex].translation, vec3.scale(temp, lookAt, viewDelta));
+            vec3.add(snake[currModelIndex].translation, snake[currModelIndex].translation, vec3.scale(temp, lookAt, speed));
             break;
         case "l":
-            vec3.add(inputTriangles[currModelIndex].translation, inputTriangles[currModelIndex].translation, vec3.scale(temp, lookAt, -viewDelta));
+            vec3.add(snake[currModelIndex].translation, snake[currModelIndex].translation, vec3.scale(temp, lookAt, -speed));
             break;
         case "i":
-            vec3.add(inputTriangles[currModelIndex].translation, inputTriangles[currModelIndex].translation, vec3.scale(temp, lookUp, viewDelta));
+            vec3.add(snake[currModelIndex].translation, snake[currModelIndex].translation, vec3.scale(temp, lookUp, speed));
             break;
         case "p":
-            vec3.add(inputTriangles[currModelIndex].translation, inputTriangles[currModelIndex].translation, vec3.scale(temp, lookUp, -viewDelta));
+            vec3.add(snake[currModelIndex].translation, snake[currModelIndex].translation, vec3.scale(temp, lookUp, -speed));
             break;
         case "K":
-			rotateModel(inputTriangles[currModelIndex], dir.left, yAxis);
+			rotateModel(snake[currModelIndex], dir.left, yAxis);
 			break;
 		case ":":
-			rotateModel(inputTriangles[currModelIndex], dir.right, yAxis);
+			rotateModel(snake[currModelIndex], dir.right, yAxis);
 			break;
         case "O":
-			rotateModel(inputTriangles[currModelIndex], dir.forward, xAxis);
+			rotateModel(snake[currModelIndex], dir.forward, xAxis);
 			break;
         case "L":
-			rotateModel(inputTriangles[currModelIndex], dir.backward, xAxis);
+			rotateModel(snake[currModelIndex], dir.backward, xAxis);
 			break;
         case "I":
-			rotateModel(inputTriangles[currModelIndex], dir.cw, zAxis);
+			rotateModel(snake[currModelIndex], dir.cw, zAxis);
 			break;
         case "P":
-			rotateModel(inputTriangles[currModelIndex], dir.ccw, zAxis);
+			rotateModel(snake[currModelIndex], dir.ccw, zAxis);
 			break;
     }
 
@@ -334,216 +447,178 @@ function setupWebGL() {
 
 } // end setupWebGL
 
+function loadSnakeSegment(whichSet){
+    var whichSetVert;
+    var coordArray = []; // 1D array of vertex coords for WebGL
+    var indexArray = []; // 1D array of vertex indices for triangles
+    var normalArray = [];
+    var uvsArray = [];
+    var tri = vec3.create();
+
+    triBufferSize[whichSet] = 0;
+
+    // initialize initial translation, rotation, scale values
+    snake[whichSet].scale = vec3.create();
+    snake[whichSet].translation = vec3.fromValues(0,0,0);
+    snake[whichSet].xAxis = vec3.fromValues(1,0,0);
+    snake[whichSet].yAxis = vec3.fromValues(0,1,0);
+    snake[whichSet].zAxis = vec3.fromValues(0,0,1);
+    snake[whichSet].center = vec3.create();
+    snake[whichSet].highlight = false;
+
+    // set up the vertex coord array
+    for (whichSetVert=0; whichSetVert<snake[whichSet].vertices.length; whichSetVert++){
+        var vtx = snake[whichSet].vertices[whichSetVert]
+        coordArray = coordArray.concat(vtx);
+        normalArray = normalArray.concat(snake[whichSet].normals[whichSetVert]);
+        uvsArray = uvsArray.concat(snake[whichSet].uvs[whichSetVert])
+        vec3.add(snake[whichSet].center, snake[whichSet].center, vtx);
+    }
+    vec3.scale(snake[whichSet].center,snake[whichSet].center,1/snake[whichSet].vertices.length);
+    // set up the triangle indicies array
+
+    for (whichSetTri=0; whichSetTri<snake[whichSet].triangles.length; whichSetTri++){
+        indexArray = indexArray.concat(snake[whichSet].triangles[whichSetTri]);
+    }
+    //vertexBufferSize += snake[whichSet].vertices.length;
+    triBufferSize[whichSet] += snake[whichSet].triangles.length; // number of triangles
+
+    triBufferSize[whichSet] *= 3; // total number of indices
+
+    snake[whichSet].coordArray = coordArray;
+    snake[whichSet].normalArray = normalArray;
+    snake[whichSet].uvsArray = uvsArray;
+    snake[whichSet].indexArray = indexArray;
+    snake[whichSet].triBufferSize = triBufferSize;
+
+    // send the vertex coords to webGL
+    snake[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER,snake[whichSet].vertexBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(snake[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
+
+    // send normals to webGL
+    snake[whichSet].normalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, snake[whichSet].normalBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(snake[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
+
+    snake[whichSet].textureBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, snake[whichSet].textureBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(snake[whichSet].uvsArray),gl.STATIC_DRAW);
+
+    snake[whichSet].triangleBuffer = [];
+    //console.log( snake[whichSet].triangles.length);
+    for (var i = 0; i < snake[whichSet].triangles.length; i++){
+        // send the triangle coords to webGL
+        snake[whichSet].triangleBuffer[i] = gl.createBuffer(); // init empty vertex coord buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, snake[whichSet].triangleBuffer[i]); // activate that buffer
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(snake[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
+    }
+
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    const level = 0;
+      const internalFormat = gl.RGBA;
+      const width = 1;
+      const height = 1;
+      const border = 0;
+      const srcFormat = gl.RGBA;
+      const srcType = gl.UNSIGNED_BYTE;
+      const pixel = new Uint8Array([0, 255, 0, 255]);  // opaque blue
+      gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                    width, height, border, srcFormat, srcType,
+                    pixel);
+    snake[whichSet].texture = texture;
+
+}
+
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
-    //inputTriangles = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
-    if (inputTriangles != String.null) {
+    //snake = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
+    if (snake != String.null) {
         var whichSetVert; // index of vertex in current triangle set
         var whichSetTri; // index of triangle in current triangle set
         //var vertexBufferSize = 0;
-        numSets = inputTriangles.length;
+        numSets = snake.length;
         if (numSets > 0)
             currModelIndex = 0;
-		for (var whichSet=0; whichSet < inputTriangles.length; whichSet++) {
-            /*
-            // ************************************************************************
-            var currSet = inputTriangles[whichSet];
-            for (var triangle = 0; triangle < currSet.triangles.length; triangle++){
-                var coordArray = []; // 1D array of vertex coords for WebGL
-                var indexArray = []; // 1D array of vertex indices for triangles
-                var normalArray = [];
-                var uvsArray = [];
-                var tri = vec3.create();
-                triangles.push(new Object());
 
-                //triBufferSize[whichSet] = 0;
+        loadSnakeSegment(0);
 
-    			// initialize initial translation, rotation, scale values
-    			triangles[triangle].scale = vec3.create();
-    			triangles[triangle].translation = vec3.fromValues(0,0,0);
-    			triangles[triangle].xAxis = vec3.fromValues(1,0,0);
-    			triangles[triangle].yAxis = vec3.fromValues(0,1,0);
-    			triangles[triangle].zAxis = vec3.fromValues(0,0,1);
-    			triangles[triangle].center = vec3.create();
-                triangles[triangle].highlight = false;
+        if (walls != String.null) {
+            var whichSetVert; // index of vertex in current triangle set
+            var whichSetTri; // index of triangle in current triangle set
+            //var vertexBufferSize = 0;
+            numSets = walls.length;
+            if (numSets > 0)
+                currModelIndex = 0;
+    		for (var whichSet=0; whichSet < walls.length; whichSet++) {
+                    var coordArray = []; // 1D array of vertex coords for WebGL
+                    var indexArray = []; // 1D array of vertex indices for triangles
+                    var normalArray = [];
+                    var uvsArray = [];
+                    var tri = vec3.create();
 
-                // set up the vertex coord array
-                for (whichSetVert=0; whichSetVert<currSet.triangles[triangle].length; whichSetVert++){
+                    triBufferSize[whichSet] = 0;
 
-                    var vtx = currSet.vertices[currSet.triangles[triangle][whichSetVert]];
-                    var normalToAdd = currSet.normals[currSet.triangles[triangle][whichSetVert]];
-                    var uvsToAdd = currSet.uvs[currSet.triangles[triangle][whichSetVert]]
+        			// initialize initial translation, rotation, scale values
+        			walls[whichSet].scale = vec3.create();
+        			walls[whichSet].translation = vec3.fromValues(0,0,0);
+        			walls[whichSet].xAxis = vec3.fromValues(1,0,0);
+        			walls[whichSet].yAxis = vec3.fromValues(0,1,0);
+        			walls[whichSet].zAxis = vec3.fromValues(0,0,1);
+        			walls[whichSet].center = vec3.create();
+                    walls[whichSet].highlight = false;
 
-    				coordArray = coordArray.concat(vtx);
-                    normalArray = normalArray.concat(normalToAdd);
-                    uvsArray = uvsArray.concat(uvsToAdd)
-    				vec3.add(triangles[triangle].center, triangles[triangle].center, vtx);
+                    // set up the vertex coord array
+                    for (whichSetVert=0; whichSetVert<walls[whichSet].vertices.length; whichSetVert++){
+                        var vtx = walls[whichSet].vertices[whichSetVert]
+        				coordArray = coordArray.concat(vtx);
+                        normalArray = normalArray.concat(walls[whichSet].normals[whichSetVert]);
+                        uvsArray = uvsArray.concat(walls[whichSet].uvs[whichSetVert])
+        				vec3.add(walls[whichSet].center, walls[whichSet].center, vtx);
+                    }
+        			vec3.scale(walls[whichSet].center,walls[whichSet].center,1/walls[whichSet].vertices.length);
+                    // set up the triangle indicies array
+                    //console.log(walls[whichSet].center);
+                    for (whichSetTri=0; whichSetTri<walls[whichSet].triangles.length; whichSetTri++){
+                        indexArray = indexArray.concat(walls[whichSet].triangles[whichSetTri]);
+                    }
+                    //vertexBufferSize += walls[whichSet].vertices.length;
+        			triBufferSize[whichSet] += walls[whichSet].triangles.length; // number of triangles
+
+                    triBufferSize[whichSet] *= 3; // total number of indices
+
+                    walls[whichSet].coordArray = coordArray;
+                    walls[whichSet].normalArray = normalArray;
+                    walls[whichSet].uvsArray = uvsArray;
+                    walls[whichSet].indexArray = indexArray;
+                    walls[whichSet].triBufferSize = triBufferSize;
+
+                    // send the vertex coords to webGL
+                    walls[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+                    gl.bindBuffer(gl.ARRAY_BUFFER,walls[whichSet].vertexBuffer); // activate that buffer
+                    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(walls[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
+
+                    // send normals to webGL
+                    walls[whichSet].normalBuffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, walls[whichSet].normalBuffer); // activate that buffer
+                    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(walls[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
+
+                    walls[whichSet].textureBuffer = gl.createBuffer();
+                    gl.bindBuffer(gl.ARRAY_BUFFER, walls[whichSet].textureBuffer); // activate that buffer
+                    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(walls[whichSet].uvsArray),gl.STATIC_DRAW);
+
+                    walls[whichSet].triangleBuffer = [];
+                    //console.log( walls[whichSet].triangles.length);
+                    for (var i = 0; i < walls[whichSet].triangles.length; i++){
+                        // send the triangle coords to webGL
+                        walls[whichSet].triangleBuffer[i] = gl.createBuffer(); // init empty vertex coord buffer
+                        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, walls[whichSet].triangleBuffer[i]); // activate that buffer
+                        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(walls[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
+                    }
                 }
-    			vec3.scale(triangles[triangle].center,triangles[triangle].center,1/3);
-                // set up the triangle indicies array
-    			for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
-                    indexArray = indexArray.concat(inputTriangles[whichSet].triangles[whichSetTri]);
-                }
-
-
-                triBufferSize[triangle] = 3; // total number of indices
-
-                inputTriangles[whichSet].coordArray = coordArray;
-                inputTriangles[whichSet].normalArray = normalArray;
-                inputTriangles[whichSet].uvsArray = uvsArray;
-                inputTriangles[whichSet].indexArray = indexArray;
-                inputTriangles[whichSet].triBufferSize = triBufferSize;
-
-                // send the vertex coords to webGL
-                inputTriangles[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
-                gl.bindBuffer(gl.ARRAY_BUFFER,inputTriangles[whichSet].vertexBuffer); // activate that buffer
-                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
-
-                // send normals to webGL
-                inputTriangles[whichSet].normalBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].normalBuffer); // activate that buffer
-                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
-
-                inputTriangles[whichSet].textureBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].textureBuffer); // activate that buffer
-                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].uvsArray),gl.STATIC_DRAW);
-
-        		// send the triangle coords to webGL
-                inputTriangles[whichSet].triangleBuffer = gl.createBuffer(); // init empty vertex coord buffer
-                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, inputTriangles[whichSet].triangleBuffer); // activate that buffer
-                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].indexArray),gl.STATIC_DRAW); // coords to that buffer
             }
-                */
-
-                var coordArray = []; // 1D array of vertex coords for WebGL
-                var indexArray = []; // 1D array of vertex indices for triangles
-                var normalArray = [];
-                var uvsArray = [];
-                var tri = vec3.create();
-
-                triBufferSize[whichSet] = 0;
-
-    			// initialize initial translation, rotation, scale values
-    			inputTriangles[whichSet].scale = vec3.create();
-    			inputTriangles[whichSet].translation = vec3.fromValues(0,0,0);
-    			inputTriangles[whichSet].xAxis = vec3.fromValues(1,0,0);
-    			inputTriangles[whichSet].yAxis = vec3.fromValues(0,1,0);
-    			inputTriangles[whichSet].zAxis = vec3.fromValues(0,0,1);
-    			inputTriangles[whichSet].center = vec3.create();
-                inputTriangles[whichSet].highlight = false;
-
-                // set up the vertex coord array
-                for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
-                    var vtx = inputTriangles[whichSet].vertices[whichSetVert]
-    				coordArray = coordArray.concat(vtx);
-                    normalArray = normalArray.concat(inputTriangles[whichSet].normals[whichSetVert]);
-                    uvsArray = uvsArray.concat(inputTriangles[whichSet].uvs[whichSetVert])
-    				vec3.add(inputTriangles[whichSet].center, inputTriangles[whichSet].center, vtx);
-                }
-    			vec3.scale(inputTriangles[whichSet].center,inputTriangles[whichSet].center,1/inputTriangles[whichSet].vertices.length);
-                // set up the triangle indicies array
-
-                for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
-                    indexArray = indexArray.concat(inputTriangles[whichSet].triangles[whichSetTri]);
-                }
-                //vertexBufferSize += inputTriangles[whichSet].vertices.length;
-    			triBufferSize[whichSet] += inputTriangles[whichSet].triangles.length; // number of triangles
-
-                triBufferSize[whichSet] *= 3; // total number of indices
-
-                inputTriangles[whichSet].coordArray = coordArray;
-                inputTriangles[whichSet].normalArray = normalArray;
-                inputTriangles[whichSet].uvsArray = uvsArray;
-                inputTriangles[whichSet].indexArray = indexArray;
-                inputTriangles[whichSet].triBufferSize = triBufferSize;
-
-                // send the vertex coords to webGL
-                inputTriangles[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
-                gl.bindBuffer(gl.ARRAY_BUFFER,inputTriangles[whichSet].vertexBuffer); // activate that buffer
-                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
-
-                // send normals to webGL
-                inputTriangles[whichSet].normalBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].normalBuffer); // activate that buffer
-                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
-
-                inputTriangles[whichSet].textureBuffer = gl.createBuffer();
-                gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].textureBuffer); // activate that buffer
-                gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].uvsArray),gl.STATIC_DRAW);
-
-                inputTriangles[whichSet].triangleBuffer = [];
-                //console.log( inputTriangles[whichSet].triangles.length);
-                for (var i = 0; i < inputTriangles[whichSet].triangles.length; i++){
-                    // send the triangle coords to webGL
-                    inputTriangles[whichSet].triangleBuffer[i] = gl.createBuffer(); // init empty vertex coord buffer
-                    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, inputTriangles[whichSet].triangleBuffer[i]); // activate that buffer
-                    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
-                }
-
-            //*****************************
-            /*
-            var coordArray = []; // 1D array of vertex coords for WebGL
-            var indexArray = []; // 1D array of vertex indices for triangles
-            var normalArray = [];
-            var uvsArray = [];
-            var tri = vec3.create();
-
-            triBufferSize[whichSet] = 0;
-
-			// initialize initial translation, rotation, scale values
-			inputTriangles[whichSet].scale = vec3.create();
-			inputTriangles[whichSet].translation = vec3.fromValues(0,0,0);
-			inputTriangles[whichSet].xAxis = vec3.fromValues(1,0,0);
-			inputTriangles[whichSet].yAxis = vec3.fromValues(0,1,0);
-			inputTriangles[whichSet].zAxis = vec3.fromValues(0,0,1);
-			inputTriangles[whichSet].center = vec3.create();
-            inputTriangles[whichSet].highlight = false;
-
-            // set up the vertex coord array
-            for (whichSetVert=0; whichSetVert<inputTriangles[whichSet].vertices.length; whichSetVert++){
-                var vtx = inputTriangles[whichSet].vertices[whichSetVert]
-				coordArray = coordArray.concat(vtx);
-                normalArray = normalArray.concat(inputTriangles[whichSet].normals[whichSetVert]);
-                uvsArray = uvsArray.concat(inputTriangles[whichSet].uvs[whichSetVert])
-				vec3.add(inputTriangles[whichSet].center, inputTriangles[whichSet].center, vtx);
-            }
-			vec3.scale(inputTriangles[whichSet].center,inputTriangles[whichSet].center,1/inputTriangles[whichSet].vertices.length);
-            // set up the triangle indicies array
-			for (whichSetTri=0; whichSetTri<inputTriangles[whichSet].triangles.length; whichSetTri++){
-                indexArray = indexArray.concat(inputTriangles[whichSet].triangles[whichSetTri]);
-            }
-
-            //vertexBufferSize += inputTriangles[whichSet].vertices.length;
-			triBufferSize[whichSet] += inputTriangles[whichSet].triangles.length; // number of triangles
-
-            triBufferSize[whichSet] *= 3; // total number of indices
-
-            inputTriangles[whichSet].coordArray = coordArray;
-            inputTriangles[whichSet].normalArray = normalArray;
-            inputTriangles[whichSet].uvsArray = uvsArray;
-            inputTriangles[whichSet].indexArray = indexArray;
-            inputTriangles[whichSet].triBufferSize = triBufferSize;
-
-            // send the vertex coords to webGL
-            inputTriangles[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
-            gl.bindBuffer(gl.ARRAY_BUFFER,inputTriangles[whichSet].vertexBuffer); // activate that buffer
-            gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
-
-            // send normals to webGL
-            inputTriangles[whichSet].normalBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].normalBuffer); // activate that buffer
-            gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
-
-            inputTriangles[whichSet].textureBuffer = gl.createBuffer();
-            gl.bindBuffer(gl.ARRAY_BUFFER, inputTriangles[whichSet].textureBuffer); // activate that buffer
-            gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(inputTriangles[whichSet].uvsArray),gl.STATIC_DRAW);
-
-    		// send the triangle coords to webGL
-            inputTriangles[whichSet].triangleBuffer = gl.createBuffer(); // init empty vertex coord buffer
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, inputTriangles[whichSet].triangleBuffer); // activate that buffer
-            gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(inputTriangles[whichSet].indexArray),gl.STATIC_DRAW); // coords to that buffer
-            */
-        } // end for each triangle set
+         // end for each triangle set
 
     } // end if triangles found
 } // end load triangles
@@ -577,10 +652,16 @@ function setupShaders() {
         varying vec2 vTextureCoord;
 
         uniform bool uLighting;
+        uniform bool textured;
 
         void main(void) {
-            //vec4 fragColor =  vec4(1.0, 1.0, 1.0, 1.0);
-            vec4 fragColor = texture2D(uColorSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+            vec4 fragColor;
+
+            if (textured){
+                fragColor = texture2D(uColorSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+            } else {
+                fragColor = vec4(1.0, 1.0, 1.0, 1.0);
+            }
 
             vec3 n = normalize(vVertexNormal);
             vec3 l = normalize(uLightPosition - vWorldPosition);
@@ -682,6 +763,7 @@ function setupShaders() {
                 alphaUniformLoc = gl.getUniformLocation(shaderProgram, "alpha");
                 nUniformLoc = gl.getUniformLocation(shaderProgram, "uN");
                 lightOnUniformLoc = gl.getUniformLocation(shaderProgram, "uLighting");
+                texturedUniformLoc = gl.getUniformLocation(shaderProgram, "textured");
 
                 colorSamplerUniformLoc = gl.getUniformLocation(shaderProgram, "uColorSampler");
 
@@ -709,8 +791,8 @@ function renderTriangles() {
 		var temp = mat4.create();
         model.mMatrix = mat4.create();
 		// move model to center
-		mat4.fromTranslation(model.mMatrix,vec3.negate(vec3.create(),model.center));
 
+		mat4.fromTranslation(model.mMatrix,vec3.negate(vec3.create(),model.center));
 
         if (model.highlight){
             mat4.multiply(model.mMatrix, mat4.fromScaling(pos, vec3.fromValues(1.2, 1.2, 1.2)), model.mMatrix);
@@ -724,6 +806,7 @@ function renderTriangles() {
 			model.xAxis[2], model.yAxis[2], model.zAxis[2], 0,
 			0,0,0,1
 			);
+
 		mat4.multiply(model.mMatrix, rotation, model.mMatrix);
 
 		// move back to model's center
@@ -746,18 +829,32 @@ function renderTriangles() {
     requestAnimationFrame(renderTriangles);
     // organize triangles based on z
     // depth sorting by model
-	for (var i = 0; i < inputTriangles.length; i++){
-		generateModelMatrixTransform(inputTriangles[i]);
+	for (var i = 0; i < snake.length; i++){
+		generateModelMatrixTransform(snake[i]);
 	}
+
+    for (var i = 0; i < walls.length; i++){
+		generateModelMatrixTransform(walls[i]);
+	}
+
     let render_triangles = [];
 
     // depth sorting: get all triangles and sort based on distance from eye-z to z value
-    for (var i = 0; i < numSets; i++){
-        let currSet = inputTriangles[i];
+    for (var i = 0; i < snake.length; i++){
+        let currSet = snake[i];
         for (var t = 0; t < currSet.triangles.length; t++){
             var triangle = currSet.triangles[t];
             var center = (currSet.vertices[triangle[0]][2] + currSet.vertices[triangle[1]][2] + currSet.vertices[triangle[2]][2]) / 3;
-            render_triangles.push({'setIndex': i, 'depth': currSet.mMatrix[14], 'z':center, "triangleIndex":t})
+            render_triangles.push({'setIndex': i, 'depth': currSet.mMatrix[14], 'z':center, "triangleIndex":t, 'type':"snake"})
+        }
+
+    }
+    for (var i = 0; i < walls.length; i++){
+        let currSet = walls[i];
+        for (var t = 0; t < currSet.triangles.length; t++){
+            var triangle = currSet.triangles[t];
+            var center = (currSet.vertices[triangle[0]][2] + currSet.vertices[triangle[1]][2] + currSet.vertices[triangle[2]][2]) / 3;
+            render_triangles.push({'setIndex': i, 'depth': currSet.mMatrix[14], 'z':center, "triangleIndex":t, 'type':"wall"})
         }
 
     }
@@ -765,9 +862,20 @@ function renderTriangles() {
 	render_triangles.sort((x,y) => {
 		return y.depth - x.depth;
 	});
-
+    // RENDER EVERYTHING!
     for ( var i = 0; i < render_triangles.length; i++){
-        let currSet = inputTriangles[render_triangles[i]['setIndex']];
+        var type = render_triangles[i].type;
+        let currSet;
+
+        switch (type){
+            case "snake":
+                currSet = snake[render_triangles[i]['setIndex']];
+                break;
+            case "wall":
+                currSet = walls[render_triangles[i]['setIndex']];
+                break;
+        }
+
         if (currSet.material.alpha !== undefined && currSet.material.alpha < 1){
             gl.depthMask(false);
         }
@@ -782,7 +890,7 @@ function renderTriangles() {
         gl.uniform1f(alphaUniformLoc, currSet.material.alpha);
         gl.uniform1f(nUniformLoc, currSet.material.n);
         gl.uniform1i(lightOnUniformLoc, lightOn);
-
+        gl.uniform1i(texturedUniformLoc, currSet.textured);
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, currSet.texture);
 
@@ -795,17 +903,10 @@ function renderTriangles() {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, currSet.textureBuffer);
         gl.vertexAttribPointer(textureCoordAttribute,2,gl.FLOAT,false,0,0);
-		/*
-        for (var j = 0; j < currSet.triangles.length; j++){
-            gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, currSet.triangleBuffer[j]);
-            gl.drawElements(gl.TRIANGLES,3,gl.UNSIGNED_SHORT,0); // render
-        }
-		*/
 
 		gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, currSet.triangleBuffer[render_triangles[i]['triangleIndex']]);
         gl.drawElements(gl.TRIANGLES,3,gl.UNSIGNED_SHORT,0); // render
     }
-
 } // end render triangles
 
 function loadTextures(){
@@ -817,7 +918,7 @@ function loadTextures(){
 
     function loadTexture(filename){
         const texture = gl.createTexture();
-        //gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
 		const level = 0;
 		  const internalFormat = gl.RGBA;
 		  const width = 1;
@@ -825,12 +926,10 @@ function loadTextures(){
 		  const border = 0;
 		  const srcFormat = gl.RGBA;
 		  const srcType = gl.UNSIGNED_BYTE;
-		  const pixel = new Uint8Array([0, 0, 255, 255]);  // opaque blue
+		  const pixel = new Uint8Array([0, 255, 0, 255]);  // opaque blue
 		  gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
 						width, height, border, srcFormat, srcType,
 						pixel);
-
-          //gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,width, height, border, srcFormat, srcType,pixel);
         /*const image = new Image();
         image.crossOrigin = "Anonymous";
         image.onload = (() => {
@@ -853,18 +952,95 @@ function loadTextures(){
         image.src = BASE_URL + filename;*/
         return texture;
     }
-    const level = 0;
-    const internalFormat = gl.RGBA;
-    const width = 1;
-    const height = 1;
-    const border = 0;
-    const srcFormat = gl.RGBA;
-    const srcType = gl.UNSIGNED_BYTE;
-    const pixel = new Uint8Array([0, 0, 255, 255]);  // opaque blue
-
-    for (var whichSet=0; whichSet < inputTriangles.length; whichSet++){
-        inputTriangles[whichSet].texture = loadTexture(inputTriangles[whichSet].material.texture);
+    /*
+    for (var whichSet=0; whichSet < snake.length; whichSet++){
+        snake[whichSet].texture = loadTexture(snake[whichSet].material.texture);
     }
+    */
+    for (var whichSet=0; whichSet < walls.length; whichSet++){
+        walls[whichSet].texture = loadTexture(walls[whichSet].material.texture);
+    }
+
+
+}
+
+function setupGame(){
+    function rotateWall(model, axis, rotated){
+		var rotation = mat4.create();
+
+		mat4.fromRotation(rotation, rotated, axis);
+		vec3.transformMat4(model.xAxis, model.xAxis, rotation);
+		vec3.transformMat4(model.yAxis, model.yAxis, rotation);
+		vec3.transformMat4(model.zAxis, model.zAxis, rotation);
+    }
+    grid = Array(gridSize).fill(EMPTY).map(() => Array(gridSize).fill(EMPTY));
+    grid[15][15] = PLAYER;
+    snake[0].x = 15;
+    snake[0].y = 16;
+    temp = vec3.create();
+    vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 4.25));
+    vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, lookUp, -4.25));
+
+    rotateWall(walls[2], zAxis, Math.PI/2);
+    rotateWall(walls[3], zAxis, Math.PI/2);
+    vec3.add(walls[2].translation, walls[2].translation, vec3.scale(temp, right, 4.125));
+    vec3.add(walls[3].translation, walls[3].translation, vec3.scale(temp, right, -4.125));
+
+    for (var i = 0; i < grid.length; i++){
+        grid[0][i] = WALL;
+        grid[grid.length-1][i] = WALL;
+        grid[i][0] = WALL;
+        grid[i][grid.length-1] = WALL;
+    }
+
+    snakeInterval = setInterval(snakeMove, 500); // sets up game logic
+
+}
+
+function snakeMove(){
+    function moveSegment(i, direction){
+        dir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), "UP":vec3.fromValues(0,1,0), "DOWN":vec3.fromValues(0,-1,0)};
+        vec3.add(snake[i].translation, snake[i].translation, vec3.scale(temp, direction, speed));
+        snake[i].x -= direction[0];
+        snake[i].y += direction[1];
+    }
+    var temp = vec3.create();
+    // move snake in current direction
+    var tail = clone(snake[snake.length - 1]);
+    var tailTranslation = vec3.clone(tail.translation);
+    var eaten = false;
+    // move heada
+
+    // move rest of snake
+    for (var i = snake.length - 1; i > 0; i--){
+        // get direction of previous snake segment
+        console.log(i, snake[i])
+        var curr = vec3.fromValues(snake[i].x, snake[i].y, 0);
+        var prev = vec3.fromValues(snake[i - 1].x, snake[i - 1].y, 0);
+        var dirOfPrev = vec3.create();
+        vec3.sub(dirOfPrev, prev, curr);
+        dirOfPrev[0] *= -1; // flip the x
+        console.log(curr, prev, dirOfPrev);
+        moveSegment(i, dirOfPrev);
+    }
+    moveSegment(0, currDir);
+
+    if (/*eaten*/ continuousAdd){
+        addSegment(tail.x, tail.y, tailTranslation);
+
+    }
+}
+
+function addSegment(x,y, translation){
+    var newTail = clone(cube);
+    snake.push(newTail);
+    var newIndex = snake.length-1;
+    loadSnakeSegment(newIndex);
+    snake[newIndex].x = x;
+    snake[newIndex].y = y;
+
+    snake[newIndex].translation = translation;
+
 }
 
 /* MAIN -- HERE is where execution begins after window load */
@@ -876,6 +1052,7 @@ function main() {
   loadTriangles(); // load in the triangles from tri file
   loadTextures();
   setupShaders(); // setup the webGL shaders
+  setupGame();
   renderTriangles(); // draw the triangles using webGL
 
 } // end main
