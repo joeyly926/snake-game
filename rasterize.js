@@ -49,7 +49,7 @@ var viewDelta = Math.PI/180;
 var lightAmbient = vec3.fromValues(1,1,1);
 var lightDiffuse = vec3.fromValues(1,1,1);
 var lightSpecular = vec3.fromValues(1,1,1);
-var lightPosition = vec3.fromValues(-3,-1,-2.0);
+var lightPosition = vec3.fromValues(-2,0.0,-4.0);
 var lightOn = true;
 
 var eyePositionUniformLoc;
@@ -210,7 +210,7 @@ var wall_triangles = [
 ];
 
 var cube = {
-  "material": {"ambient": [0.1,0.1,0.1], "diffuse": [0.0, 1.0, 0.0], "specular": [0.3,1.0,0.3], "n": 1, "alpha": 1.0, "texture": ""},
+  "material": {"ambient": [0.1,0.1,0.1], "diffuse": [0.0, 1.0, 0.0], "specular": [0.3,0.3,0.3], "n": 29, "alpha": 1.0, "texture": ""},
   "vertices": cube_vertices,
   "normals": cube_normals,
   "uvs": uvs,
@@ -219,7 +219,7 @@ var cube = {
 };
 
 var wall = {
-    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,1.0,0.3], "n": 1, "alpha": 1.0, "texture": ""},
+    "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.0,0.0,0.0], "n": 1, "alpha": 1.0, "texture": ""},
     "vertices": wall_vertices,
     "normals": wall_normals,
     "uvs": wall_uvs,
@@ -531,6 +531,90 @@ function loadSnakeSegment(whichSet){
 
 }
 
+function loadFood(whichSet){
+    var whichSetVert;
+    var coordArray = []; // 1D array of vertex coords for WebGL
+    var indexArray = []; // 1D array of vertex indices for triangles
+    var normalArray = [];
+    var uvsArray = [];
+    var tri = vec3.create();
+
+    triBufferSize[whichSet] = 0;
+
+    // initialize initial translation, rotation, scale values
+    food[whichSet].scale = vec3.create();
+    food[whichSet].translation = vec3.fromValues(0,0,0);
+    food[whichSet].xAxis = vec3.fromValues(1,0,0);
+    food[whichSet].yAxis = vec3.fromValues(0,1,0);
+    food[whichSet].zAxis = vec3.fromValues(0,0,1);
+    food[whichSet].center = vec3.create();
+    food[whichSet].highlight = false;
+
+    // set up the vertex coord array
+    for (whichSetVert=0; whichSetVert<food[whichSet].vertices.length; whichSetVert++){
+        var vtx = food[whichSet].vertices[whichSetVert]
+        coordArray = coordArray.concat(vtx);
+        normalArray = normalArray.concat(food[whichSet].normals[whichSetVert]);
+        uvsArray = uvsArray.concat(food[whichSet].uvs[whichSetVert])
+        vec3.add(food[whichSet].center, food[whichSet].center, vtx);
+    }
+    vec3.scale(food[whichSet].center,food[whichSet].center,1/food[whichSet].vertices.length);
+    // set up the triangle indicies array
+
+    for (whichSetTri=0; whichSetTri<food[whichSet].triangles.length; whichSetTri++){
+        indexArray = indexArray.concat(food[whichSet].triangles[whichSetTri]);
+    }
+    //vertexBufferSize += food[whichSet].vertices.length;
+    triBufferSize[whichSet] += food[whichSet].triangles.length; // number of triangles
+
+    triBufferSize[whichSet] *= 3; // total number of indices
+
+    food[whichSet].coordArray = coordArray;
+    food[whichSet].normalArray = normalArray;
+    food[whichSet].uvsArray = uvsArray;
+    food[whichSet].indexArray = indexArray;
+    food[whichSet].triBufferSize = triBufferSize;
+
+    // send the vertex coords to webGL
+    food[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER,food[whichSet].vertexBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(food[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
+
+    // send normals to webGL
+    food[whichSet].normalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, food[whichSet].normalBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(food[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
+
+    food[whichSet].textureBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, food[whichSet].textureBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(food[whichSet].uvsArray),gl.STATIC_DRAW);
+
+    food[whichSet].triangleBuffer = [];
+    //console.log( food[whichSet].triangles.length);
+    for (var i = 0; i < food[whichSet].triangles.length; i++){
+        // send the triangle coords to webGL
+        food[whichSet].triangleBuffer[i] = gl.createBuffer(); // init empty vertex coord buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, food[whichSet].triangleBuffer[i]); // activate that buffer
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(food[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
+    }
+
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    const level = 0;
+      const internalFormat = gl.RGBA;
+      const width = 1;
+      const height = 1;
+      const border = 0;
+      const srcFormat = gl.RGBA;
+      const srcType = gl.UNSIGNED_BYTE;
+      const pixel = new Uint8Array([255, 255, 255, 255]);
+      gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
+                    width, height, border, srcFormat, srcType,
+                    pixel);
+    food[whichSet].texture = texture;
+
+}
+
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
     //snake = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
@@ -836,6 +920,9 @@ function renderTriangles() {
     for (var i = 0; i < walls.length; i++){
 		generateModelMatrixTransform(walls[i]);
 	}
+	for (var i = 0; i < food.length; i++){
+		generateModelMatrixTransform(food[i]);
+	}
 
     let render_triangles = [];
 
@@ -858,7 +945,16 @@ function renderTriangles() {
         }
 
     }
+	
+	for (var i = 0; i < food.length; i++){
+        let currSet = food[i];
+        for (var t = 0; t < currSet.triangles.length; t++){
+            var triangle = currSet.triangles[t];
+            var center = (currSet.vertices[triangle[0]][2] + currSet.vertices[triangle[1]][2] + currSet.vertices[triangle[2]][2]) / 3;
+            render_triangles.push({'setIndex': i, 'depth': currSet.mMatrix[14], 'z':center, "triangleIndex":t, 'type':"food"})
+        }
 
+    }
 	render_triangles.sort((x,y) => {
 		return y.depth - x.depth;
 	});
@@ -873,6 +969,9 @@ function renderTriangles() {
                 break;
             case "wall":
                 currSet = walls[render_triangles[i]['setIndex']];
+                break;
+			case "food":
+                currSet = food[render_triangles[i]['setIndex']];
                 break;
         }
 
@@ -973,12 +1072,13 @@ function setupGame(){
 		vec3.transformMat4(model.yAxis, model.yAxis, rotation);
 		vec3.transformMat4(model.zAxis, model.zAxis, rotation);
     }
+	
     grid = Array(gridSize).fill(EMPTY).map(() => Array(gridSize).fill(EMPTY));
     grid[15][15] = PLAYER;
     snake[0].x = 15;
     snake[0].y = 16;
     temp = vec3.create();
-    vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 4.25));
+    vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 4.0));
     vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, lookUp, -4.25));
 
     rotateWall(walls[2], zAxis, Math.PI/2);
@@ -992,9 +1092,27 @@ function setupGame(){
         grid[i][0] = WALL;
         grid[i][grid.length-1] = WALL;
     }
+	spawnFood();
+    snakeInterval = setInterval(snakeMove, 100); // sets up game logic
 
-    snakeInterval = setInterval(snakeMove, 500); // sets up game logic
+}
 
+function spawnFood(){
+	var x = Math.floor(Math.random() * gridSize);
+	var y = Math.floor(Math.random() * gridSize);
+	var newFood = clone(cube);
+	newFood.material.diffuse = [1.0, 1.0, 1.0];
+	food.push(newFood);
+	var newIndex = food.length - 1;
+	loadFood(newIndex);
+	food[newIndex].x = x;
+	food[newIndex].y = y;
+	var dest = vec3.create();
+	console.log(x,y)
+	vec3.subtract(dest, vec3.fromValues(x,y,0), vec3.fromValues(15,16, 0));
+	vec3.add(food[newIndex].translation, food[newIndex].translation, vec3.scale(temp, dest, speed));
+	grid[x][y] = FOOD;
+	console.log(grid);
 }
 
 function snakeMove(){
@@ -1003,14 +1121,37 @@ function snakeMove(){
         vec3.add(snake[i].translation, snake[i].translation, vec3.scale(temp, direction, speed));
         snake[i].x -= direction[0];
         snake[i].y += direction[1];
+		grid[snake[i].x][snake[i].y] = PLAYER;
     }
+	function addSegment(x,y, translation){
+		var newTail = clone(cube);
+		snake.push(newTail);
+		var newIndex = snake.length-1;
+		loadSnakeSegment(newIndex);
+		snake[newIndex].x = x;
+		snake[newIndex].y = y;
+
+		snake[newIndex].translation = translation;
+		grid[x][y] = true;
+	}
+	
+	var nextX = snake[0].x - currDir[0];
+	var nextY = snake[0].y + currDir[1];
+	if (nextX >= gridSize || nextY >= gridSize || nextY < 0 || nextX < 0 || grid[nextX][nextY] != EMPTY){
+		clearInterval(snakeInterval);
+		return;
+	}
+	var foundFood = false;
+	if (grid[nextX][nextY] == FOOD){
+		foundFood = true;
+		grid[nextX][nextY] = EMPTY
+	}
     var temp = vec3.create();
     // move snake in current direction
     var tail = clone(snake[snake.length - 1]);
     var tailTranslation = vec3.clone(tail.translation);
     var eaten = false;
-    // move heada
-
+	grid[tail.x][tail.y] = EMPTY;
     // move rest of snake
     for (var i = snake.length - 1; i > 0; i--){
         // get direction of previous snake segment
@@ -1020,27 +1161,14 @@ function snakeMove(){
         var dirOfPrev = vec3.create();
         vec3.sub(dirOfPrev, prev, curr);
         dirOfPrev[0] *= -1; // flip the x
-        console.log(curr, prev, dirOfPrev);
+        //console.log(curr, prev, dirOfPrev);
         moveSegment(i, dirOfPrev);
     }
     moveSegment(0, currDir);
-
-    if (/*eaten*/ continuousAdd){
+    if (foundFood){
         addSegment(tail.x, tail.y, tailTranslation);
-
     }
-}
-
-function addSegment(x,y, translation){
-    var newTail = clone(cube);
-    snake.push(newTail);
-    var newIndex = snake.length-1;
-    loadSnakeSegment(newIndex);
-    snake[newIndex].x = x;
-    snake[newIndex].y = y;
-
-    snake[newIndex].translation = translation;
-
+	//console.log(grid);
 }
 
 /* MAIN -- HERE is where execution begins after window load */
