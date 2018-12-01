@@ -27,10 +27,9 @@ var numSets;
 var continuousAdd = false;
 
 var speed = 0.25
-const PLAYER = 0;
+const PLAYER = -2;
 const EMPTY = -1;
-const FOOD = 1;
-const WALL = 2;
+const WALL = -3;
 
 var eye = vec3.fromValues(0.0,0.0,-5.0);
 var center = vec3.fromValues(0.5,0.5,0.0);
@@ -210,7 +209,7 @@ var wall_triangles = [
 ];
 
 var cube = {
-  "material": {"ambient": [0.1,0.1,0.1], "diffuse": [0.0, 1.0, 0.0], "specular": [0.3,0.3,0.3], "n": 29, "alpha": 1.0, "texture": ""},
+  "material": {"ambient": [0.1,0.1,0.1], "diffuse": [1.0, 1.0, 1.0], "specular": [0.3,0.3,0.3], "n": 29, "alpha": 1.0, "texture": ""},
   "vertices": cube_vertices,
   "normals": cube_normals,
   "uvs": uvs,
@@ -227,7 +226,7 @@ var wall = {
     "textured": false
 }
 
-var snake = [clone(cube)];
+var snake;
 var food = [];
 var walls = [clone(wall), clone(wall), clone(wall), clone(wall)];
 
@@ -235,13 +234,15 @@ var snakeDir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), 
 var currDir = snakeDir.RIGHT;
 
 var snakeInterval;
-
+var cubeStartX = 15;
+var cubeStartY = 16;
+var foodCounter = 0;
 
 function clone(obj) {
-    if (null == obj || "object" != typeof obj) return obj;
-    var copy = obj.constructor();
+    var copy = {};
     for (var attr in obj) {
-        if (obj.hasOwnProperty(attr)) copy[attr] = obj[attr];
+        if (obj.hasOwnProperty(attr))
+            copy[attr] = obj[attr];
     }
     return copy;
 }
@@ -607,7 +608,7 @@ function loadFood(whichSet){
       const border = 0;
       const srcFormat = gl.RGBA;
       const srcType = gl.UNSIGNED_BYTE;
-      const pixel = new Uint8Array([255, 255, 255, 255]);
+      const pixel = new Uint8Array([255, 0, 0, 255]);
       gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
                     width, height, border, srcFormat, srcType,
                     pixel);
@@ -618,15 +619,13 @@ function loadFood(whichSet){
 // read triangles in, load them into webgl buffers
 function loadTriangles() {
     //snake = getJSONFile(INPUT_TRIANGLES_URL,"triangles");
-    if (snake != String.null) {
         var whichSetVert; // index of vertex in current triangle set
         var whichSetTri; // index of triangle in current triangle set
         //var vertexBufferSize = 0;
-        numSets = snake.length;
         if (numSets > 0)
             currModelIndex = 0;
 
-        loadSnakeSegment(0);
+
 
         if (walls != String.null) {
             var whichSetVert; // index of vertex in current triangle set
@@ -704,7 +703,7 @@ function loadTriangles() {
             }
          // end for each triangle set
 
-    } // end if triangles found
+     // end if triangles found
 } // end load triangles
 
 // setup the webGL shaders
@@ -945,7 +944,7 @@ function renderTriangles() {
         }
 
     }
-	
+
 	for (var i = 0; i < food.length; i++){
         let currSet = food[i];
         for (var t = 0; t < currSet.triangles.length; t++){
@@ -1072,19 +1071,21 @@ function setupGame(){
 		vec3.transformMat4(model.yAxis, model.yAxis, rotation);
 		vec3.transformMat4(model.zAxis, model.zAxis, rotation);
     }
-	
+
     grid = Array(gridSize).fill(EMPTY).map(() => Array(gridSize).fill(EMPTY));
-    grid[15][15] = PLAYER;
-    snake[0].x = 15;
-    snake[0].y = 16;
+    grid[cubeStartX][cubeStartY] = PLAYER;
+    snake =  [clone(cube)];
+    snake[0].x = cubeStartX;
+    snake[0].y = cubeStartY;
+    loadSnakeSegment(0);
     temp = vec3.create();
-    vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 4.0));
-    vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, lookUp, -4.25));
+    vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 3.75));
+    vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, lookUp, -4.0));
 
     rotateWall(walls[2], zAxis, Math.PI/2);
     rotateWall(walls[3], zAxis, Math.PI/2);
-    vec3.add(walls[2].translation, walls[2].translation, vec3.scale(temp, right, 4.125));
-    vec3.add(walls[3].translation, walls[3].translation, vec3.scale(temp, right, -4.125));
+    vec3.add(walls[2].translation, walls[2].translation, vec3.scale(temp, right, 3.875));
+    vec3.add(walls[3].translation, walls[3].translation, vec3.scale(temp, right, -3.875));
 
     for (var i = 0; i < grid.length; i++){
         grid[0][i] = WALL;
@@ -1092,27 +1093,51 @@ function setupGame(){
         grid[i][0] = WALL;
         grid[i][grid.length-1] = WALL;
     }
-	spawnFood();
+    spawnFood();
+	foodInterval = setInterval(spawnFood, 3000);
     snakeInterval = setInterval(snakeMove, 100); // sets up game logic
 
 }
 
 function spawnFood(){
-	var x = Math.floor(Math.random() * gridSize);
-	var y = Math.floor(Math.random() * gridSize);
+    var spots = []
+    for (var i = 1; i < grid.length - 1; i++)
+        for (var j = 1; j < grid[i].length; j++)
+            if (grid[i][j] == EMPTY)
+                spots.push({'x':i, 'y': j})
+
+	//var x = Math.floor(Math.random() * (gridSize-2)) + 1;
+	//var y = Math.floor(Math.random() * (gridSize-2)) + 1;
+    var spot = spots[Math.floor(Math.random() * spots.length)];
 	var newFood = clone(cube);
-	newFood.material.diffuse = [1.0, 1.0, 1.0];
 	food.push(newFood);
 	var newIndex = food.length - 1;
+    newFood.id = foodCounter++;
 	loadFood(newIndex);
-	food[newIndex].x = x;
-	food[newIndex].y = y;
+	food[newIndex].x = spot.x;
+	food[newIndex].y = spot.y;
 	var dest = vec3.create();
-	console.log(x,y)
-	vec3.subtract(dest, vec3.fromValues(x,y,0), vec3.fromValues(15,16, 0));
+	vec3.subtract(dest, vec3.fromValues(gridSize - spot.x - 2, spot.y, 0), vec3.fromValues(cubeStartX,cubeStartY, 0));
 	vec3.add(food[newIndex].translation, food[newIndex].translation, vec3.scale(temp, dest, speed));
-	grid[x][y] = FOOD;
-	console.log(grid);
+	grid[spot.x][spot.y] = newFood.id;
+}
+
+function reset(){
+    clearInterval(foodInterval);
+    clearInterval(snakeInterval);
+
+    food = [];
+    for (var i = 1; i < grid.length - 1; i++)
+        for (var j = 1; j < grid[i].length; j++)
+            grid[i][j] = EMPTY;
+    snake =  [clone(cube)];
+    snake[0].x = cubeStartX;
+    snake[0].y = cubeStartY;
+    loadSnakeSegment(0);
+    currDir = snakeDir.RIGHT;
+    spawnFood();
+	foodInterval = setInterval(spawnFood, 3000);
+    snakeInterval = setInterval(snakeMove, 100);
 }
 
 function snakeMove(){
@@ -1134,18 +1159,24 @@ function snakeMove(){
 		snake[newIndex].translation = translation;
 		grid[x][y] = true;
 	}
-	
+
 	var nextX = snake[0].x - currDir[0];
 	var nextY = snake[0].y + currDir[1];
-	if (nextX >= gridSize || nextY >= gridSize || nextY < 0 || nextX < 0 || grid[nextX][nextY] != EMPTY){
-		clearInterval(snakeInterval);
+    var foundFood = false;
+	if (grid[nextX][nextY] >= 0){
+		foundFood = true;
+        var id = grid[nextX][nextY];
+		grid[nextX][nextY] = EMPTY;
+        for (var i = 0; i < food.length; i++)
+            if (id == food[i].id)
+                food.splice(i, 1);
+
+	}
+	if (/*nextX >= gridSize || nextY >= gridSize || nextY < 0 || nextX < 0 || */grid[nextX][nextY] != EMPTY){
+        reset();
 		return;
 	}
-	var foundFood = false;
-	if (grid[nextX][nextY] == FOOD){
-		foundFood = true;
-		grid[nextX][nextY] = EMPTY
-	}
+
     var temp = vec3.create();
     // move snake in current direction
     var tail = clone(snake[snake.length - 1]);
