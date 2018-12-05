@@ -30,6 +30,7 @@ var speed = 0.25
 const PLAYER = -2;
 const EMPTY = -1;
 const WALL = -3;
+const ENEMY = -4;
 
 var eye = vec3.fromValues(0.0,0.0,-5.0);
 var center = vec3.fromValues(0.5,0.5,0.0);
@@ -227,13 +228,18 @@ var wall = {
 }
 
 var snake;
+var enemy;
+var enemyReset = false;
+var enemySteps;
 var food = [];
 var walls = [clone(wall), clone(wall), clone(wall), clone(wall)];
 
 var snakeDir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), "UP":vec3.fromValues(0,1,0), "DOWN":vec3.fromValues(0,-1,0)};
 var currDir = snakeDir.RIGHT;
+var enemyDir;
 
 var snakeInterval;
+var enemyInterval;
 var cubeStartX = 15;
 var cubeStartY = 16;
 var foodCounter = 0;
@@ -420,8 +426,8 @@ function setupWebGL() {
       var cw = imageCanvas.width, ch = imageCanvas.height;
       imageContext = imageCanvas.getContext("2d");
       var bkgdImage = new Image();
-      bkgdImage.crossOrigin = "Anonymous";
-      bkgdImage.src = "https://ncsucgclass.github.io/prog4/sky.jpg";
+      bkgdImage.crossOrigin = null;
+      bkgdImage.src = "unnamed.png";
       bkgdImage.onload = function(){
           var iw = bkgdImage.width, ih = bkgdImage.height;
           imageContext.drawImage(bkgdImage,0,0,iw,ih,0,0,cw,ch);
@@ -448,7 +454,7 @@ function setupWebGL() {
 
 } // end setupWebGL
 
-function loadSnakeSegment(whichSet){
+function loadSnakeSegment(whichSnake, whichSet){
     var whichSetVert;
     var coordArray = []; // 1D array of vertex coords for WebGL
     var indexArray = []; // 1D array of vertex indices for triangles
@@ -459,60 +465,60 @@ function loadSnakeSegment(whichSet){
     triBufferSize[whichSet] = 0;
 
     // initialize initial translation, rotation, scale values
-    snake[whichSet].scale = vec3.create();
-    snake[whichSet].translation = vec3.fromValues(0,0,0);
-    snake[whichSet].xAxis = vec3.fromValues(1,0,0);
-    snake[whichSet].yAxis = vec3.fromValues(0,1,0);
-    snake[whichSet].zAxis = vec3.fromValues(0,0,1);
-    snake[whichSet].center = vec3.create();
-    snake[whichSet].highlight = false;
+    whichSnake[whichSet].scale = vec3.create();
+    whichSnake[whichSet].translation = vec3.fromValues(0,0,0);
+    whichSnake[whichSet].xAxis = vec3.fromValues(1,0,0);
+    whichSnake[whichSet].yAxis = vec3.fromValues(0,1,0);
+    whichSnake[whichSet].zAxis = vec3.fromValues(0,0,1);
+    whichSnake[whichSet].center = vec3.create();
+    whichSnake[whichSet].highlight = false;
 
     // set up the vertex coord array
-    for (whichSetVert=0; whichSetVert<snake[whichSet].vertices.length; whichSetVert++){
-        var vtx = snake[whichSet].vertices[whichSetVert]
+    for (whichSetVert=0; whichSetVert<whichSnake[whichSet].vertices.length; whichSetVert++){
+        var vtx = whichSnake[whichSet].vertices[whichSetVert]
         coordArray = coordArray.concat(vtx);
-        normalArray = normalArray.concat(snake[whichSet].normals[whichSetVert]);
-        uvsArray = uvsArray.concat(snake[whichSet].uvs[whichSetVert])
-        vec3.add(snake[whichSet].center, snake[whichSet].center, vtx);
+        normalArray = normalArray.concat(whichSnake[whichSet].normals[whichSetVert]);
+        uvsArray = uvsArray.concat(whichSnake[whichSet].uvs[whichSetVert])
+        vec3.add(whichSnake[whichSet].center, whichSnake[whichSet].center, vtx);
     }
-    vec3.scale(snake[whichSet].center,snake[whichSet].center,1/snake[whichSet].vertices.length);
+    vec3.scale(whichSnake[whichSet].center,whichSnake[whichSet].center,1/whichSnake[whichSet].vertices.length);
     // set up the triangle indicies array
 
-    for (whichSetTri=0; whichSetTri<snake[whichSet].triangles.length; whichSetTri++){
-        indexArray = indexArray.concat(snake[whichSet].triangles[whichSetTri]);
+    for (whichSetTri=0; whichSetTri<whichSnake[whichSet].triangles.length; whichSetTri++){
+        indexArray = indexArray.concat(whichSnake[whichSet].triangles[whichSetTri]);
     }
-    //vertexBufferSize += snake[whichSet].vertices.length;
-    triBufferSize[whichSet] += snake[whichSet].triangles.length; // number of triangles
+    //vertexBufferSize += whichSnake[whichSet].vertices.length;
+    triBufferSize[whichSet] += whichSnake[whichSet].triangles.length; // number of triangles
 
     triBufferSize[whichSet] *= 3; // total number of indices
 
-    snake[whichSet].coordArray = coordArray;
-    snake[whichSet].normalArray = normalArray;
-    snake[whichSet].uvsArray = uvsArray;
-    snake[whichSet].indexArray = indexArray;
-    snake[whichSet].triBufferSize = triBufferSize;
+    whichSnake[whichSet].coordArray = coordArray;
+    whichSnake[whichSet].normalArray = normalArray;
+    whichSnake[whichSet].uvsArray = uvsArray;
+    whichSnake[whichSet].indexArray = indexArray;
+    whichSnake[whichSet].triBufferSize = triBufferSize;
 
     // send the vertex coords to webGL
-    snake[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
-    gl.bindBuffer(gl.ARRAY_BUFFER,snake[whichSet].vertexBuffer); // activate that buffer
-    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(snake[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
+    whichSnake[whichSet].vertexBuffer = gl.createBuffer(); // init empty vertex coord buffer
+    gl.bindBuffer(gl.ARRAY_BUFFER,whichSnake[whichSet].vertexBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(whichSnake[whichSet].coordArray),gl.STATIC_DRAW); // coords to that buffer
 
     // send normals to webGL
-    snake[whichSet].normalBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, snake[whichSet].normalBuffer); // activate that buffer
-    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(snake[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
+    whichSnake[whichSet].normalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, whichSnake[whichSet].normalBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(whichSnake[whichSet].normalArray),gl.STATIC_DRAW); // coords to that buffer
 
-    snake[whichSet].textureBuffer = gl.createBuffer();
-    gl.bindBuffer(gl.ARRAY_BUFFER, snake[whichSet].textureBuffer); // activate that buffer
-    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(snake[whichSet].uvsArray),gl.STATIC_DRAW);
+    whichSnake[whichSet].textureBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, whichSnake[whichSet].textureBuffer); // activate that buffer
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(whichSnake[whichSet].uvsArray),gl.STATIC_DRAW);
 
-    snake[whichSet].triangleBuffer = [];
-    //console.log( snake[whichSet].triangles.length);
-    for (var i = 0; i < snake[whichSet].triangles.length; i++){
+    whichSnake[whichSet].triangleBuffer = [];
+    //console.log( whichSnake[whichSet].triangles.length);
+    for (var i = 0; i < whichSnake[whichSet].triangles.length; i++){
         // send the triangle coords to webGL
-        snake[whichSet].triangleBuffer[i] = gl.createBuffer(); // init empty vertex coord buffer
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, snake[whichSet].triangleBuffer[i]); // activate that buffer
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(snake[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
+        whichSnake[whichSet].triangleBuffer[i] = gl.createBuffer(); // init empty vertex coord buffer
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, whichSnake[whichSet].triangleBuffer[i]); // activate that buffer
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,new Uint16Array(whichSnake[whichSet].triangles[i]),gl.STATIC_DRAW); // coords to that buffer
     }
 
     const texture = gl.createTexture();
@@ -524,11 +530,15 @@ function loadSnakeSegment(whichSet){
       const border = 0;
       const srcFormat = gl.RGBA;
       const srcType = gl.UNSIGNED_BYTE;
-      const pixel = new Uint8Array([0, 255, 0, 255]);  // opaque blue
+      var r = Math.floor(Math.random() * 256),
+          g = Math.floor(Math.random() * 256),
+          b = Math.floor(Math.random() * 256),
+          a = Math.floor(Math.random() * 64) + 192;
+      const pixel = new Uint8Array([r, g, b, a]);  // opaque blue
       gl.texImage2D(gl.TEXTURE_2D, level, internalFormat,
                     width, height, border, srcFormat, srcType,
                     pixel);
-    snake[whichSet].texture = texture;
+    whichSnake[whichSet].texture = texture;
 
 }
 
@@ -922,6 +932,12 @@ function renderTriangles() {
 	for (var i = 0; i < food.length; i++){
 		generateModelMatrixTransform(food[i]);
 	}
+    if (!enemyReset){
+        for (var i = 0; i < enemy.length; i++){
+    		generateModelMatrixTransform(enemy[i]);
+    	}
+    }
+
 
     let render_triangles = [];
 
@@ -935,6 +951,19 @@ function renderTriangles() {
         }
 
     }
+    if (!enemyReset){
+        for (var i = 0; i < enemy.length; i++){
+            let currSet = enemy[i];
+            for (var t = 0; t < currSet.triangles.length; t++){
+                var triangle = currSet.triangles[t];
+                var center = (currSet.vertices[triangle[0]][2] + currSet.vertices[triangle[1]][2] + currSet.vertices[triangle[2]][2]) / 3;
+                render_triangles.push({'setIndex': i, 'depth': currSet.mMatrix[14], 'z':center, "triangleIndex":t, 'type':"enemy"})
+            }
+
+        }
+    }
+
+
     for (var i = 0; i < walls.length; i++){
         let currSet = walls[i];
         for (var t = 0; t < currSet.triangles.length; t++){
@@ -957,6 +986,7 @@ function renderTriangles() {
 	render_triangles.sort((x,y) => {
 		return y.depth - x.depth;
 	});
+
     // RENDER EVERYTHING!
     for ( var i = 0; i < render_triangles.length; i++){
         var type = render_triangles[i].type;
@@ -965,6 +995,9 @@ function renderTriangles() {
         switch (type){
             case "snake":
                 currSet = snake[render_triangles[i]['setIndex']];
+                break;
+            case "enemy":
+                currSet = enemy[render_triangles[i]['setIndex']];
                 break;
             case "wall":
                 currSet = walls[render_triangles[i]['setIndex']];
@@ -1061,6 +1094,56 @@ function loadTextures(){
 
 
 }
+function initSnake(){
+    grid[cubeStartX][cubeStartY] = PLAYER;
+    snake =  [clone(cube)];
+    snake[0].x = cubeStartX;
+    snake[0].y = cubeStartY;
+    loadSnakeSegment(snake, 0);
+    currDir = snakeDir.RIGHT;
+}
+
+function chooseEnemyDir(){
+    // init to no direction
+    enemyDir = vec3.create();
+    var nextDir = vec3.create();
+    var check = vec3.create();
+    while (vec3.exactEquals(enemyDir, check)){
+        var dirs = Object.keys(snakeDir);
+        var randDir = Math.floor(Math.random() * dirs.length);
+        nextDir = snakeDir[dirs[randDir]];
+        if (enemy.length > 0)
+            vec3.negate(check,nextDir);
+        else
+            enemyDir = nextDir;
+    }
+    enemyDir = nextDir;
+}
+
+function initEnemy(){
+    enemyReset = true;
+    enemy =  [clone(cube)];
+    let spots = [];
+    for (var i = 1; i < grid.length - 1; i++)
+        for (var j = 1; j < grid[i].length - 1; j++)
+            if (grid[i][j] == EMPTY)
+                spots.push({'x':i, 'y': j})
+    let spot = spots[Math.floor(Math.random() * spots.length)]
+    grid[spot.x][spot.y] = ENEMY;
+    enemy[0].x = spot.x;
+    enemy[0].y = spot.y;
+    loadSnakeSegment(enemy, 0);
+    enemyDir = snakeDir.RIGHT;
+    enemySteps = Math.floor(Math.random() * 5);
+    var temp = vec3.create();
+
+    // translate the enemy snake to spawn location
+    var dest = vec3.create();
+    vec3.subtract(dest, vec3.fromValues(gridSize - spot.x - 2, spot.y, 0), vec3.fromValues(cubeStartX,cubeStartY, 0));
+	vec3.add(enemy[0].translation, enemy[0].translation, vec3.scale(temp, dest, speed));
+
+    enemyReset = false;
+}
 
 function setupGame(){
     function rotateWall(model, axis, rotated){
@@ -1073,12 +1156,14 @@ function setupGame(){
     }
 
     grid = Array(gridSize).fill(EMPTY).map(() => Array(gridSize).fill(EMPTY));
-    grid[cubeStartX][cubeStartY] = PLAYER;
-    snake =  [clone(cube)];
-    snake[0].x = cubeStartX;
-    snake[0].y = cubeStartY;
-    loadSnakeSegment(0);
-    temp = vec3.create();
+
+    initSnake();
+
+    initEnemy();
+
+    console.log(enemy);
+    var temp = vec3.create();
+
     vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 3.75));
     vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, lookUp, -4.0));
 
@@ -1093,16 +1178,17 @@ function setupGame(){
         grid[i][0] = WALL;
         grid[i][grid.length-1] = WALL;
     }
-    spawnFood();
+    for (var i = 0; i < 20; i ++)
+        spawnFood();
 	foodInterval = setInterval(spawnFood, 3000);
     snakeInterval = setInterval(snakeMove, 100); // sets up game logic
-
+    enemyInterval = setInterval(enemyMove, 100);
 }
 
 function spawnFood(){
     var spots = []
     for (var i = 1; i < grid.length - 1; i++)
-        for (var j = 1; j < grid[i].length; j++)
+        for (var j = 1; j < grid[i].length - 1; j++)
             if (grid[i][j] == EMPTY)
                 spots.push({'x':i, 'y': j})
 
@@ -1117,6 +1203,7 @@ function spawnFood(){
 	food[newIndex].x = spot.x;
 	food[newIndex].y = spot.y;
 	var dest = vec3.create();
+    var temp = vec3.create();
 	vec3.subtract(dest, vec3.fromValues(gridSize - spot.x - 2, spot.y, 0), vec3.fromValues(cubeStartX,cubeStartY, 0));
 	vec3.add(food[newIndex].translation, food[newIndex].translation, vec3.scale(temp, dest, speed));
 	grid[spot.x][spot.y] = newFood.id;
@@ -1125,41 +1212,24 @@ function spawnFood(){
 function reset(){
     clearInterval(foodInterval);
     clearInterval(snakeInterval);
+    clearInterval(enemyInterval);
 
     food = [];
     for (var i = 1; i < grid.length - 1; i++)
-        for (var j = 1; j < grid[i].length; j++)
+        for (var j = 1; j < grid[i].length - 1; j++)
             grid[i][j] = EMPTY;
-    snake =  [clone(cube)];
-    snake[0].x = cubeStartX;
-    snake[0].y = cubeStartY;
-    loadSnakeSegment(0);
-    currDir = snakeDir.RIGHT;
+
+    initSnake();
+    initEnemy();
     spawnFood();
 	foodInterval = setInterval(spawnFood, 3000);
     snakeInterval = setInterval(snakeMove, 100);
+    enemyInterval = setInterval(enemyMove, 100);
 }
 
+
+
 function snakeMove(){
-    function moveSegment(i, direction){
-        dir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), "UP":vec3.fromValues(0,1,0), "DOWN":vec3.fromValues(0,-1,0)};
-        vec3.add(snake[i].translation, snake[i].translation, vec3.scale(temp, direction, speed));
-        snake[i].x -= direction[0];
-        snake[i].y += direction[1];
-		grid[snake[i].x][snake[i].y] = PLAYER;
-    }
-	function addSegment(x,y, translation){
-		var newTail = clone(cube);
-		snake.push(newTail);
-		var newIndex = snake.length-1;
-		loadSnakeSegment(newIndex);
-		snake[newIndex].x = x;
-		snake[newIndex].y = y;
-
-		snake[newIndex].translation = translation;
-		grid[x][y] = true;
-	}
-
 	var nextX = snake[0].x - currDir[0];
 	var nextY = snake[0].y + currDir[1];
     var foundFood = false;
@@ -1186,21 +1256,90 @@ function snakeMove(){
     // move rest of snake
     for (var i = snake.length - 1; i > 0; i--){
         // get direction of previous snake segment
-        console.log(i, snake[i])
+        //console.log(i, snake[i])
         var curr = vec3.fromValues(snake[i].x, snake[i].y, 0);
         var prev = vec3.fromValues(snake[i - 1].x, snake[i - 1].y, 0);
         var dirOfPrev = vec3.create();
         vec3.sub(dirOfPrev, prev, curr);
         dirOfPrev[0] *= -1; // flip the x
         //console.log(curr, prev, dirOfPrev);
-        moveSegment(i, dirOfPrev);
+        moveSegment(i, dirOfPrev, snake, PLAYER);
     }
-    moveSegment(0, currDir);
+    moveSegment(0, currDir, snake, PLAYER);
     if (foundFood){
-        addSegment(tail.x, tail.y, tailTranslation);
+        addSegment(tail.x, tail.y, tailTranslation, snake, PLAYER);
     }
 	//console.log(grid);
 }
+
+function moveSegment(i, direction, whichSnake, type){
+    dir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), "UP":vec3.fromValues(0,1,0), "DOWN":vec3.fromValues(0,-1,0)};
+    var temp = vec3.create();
+    vec3.add(whichSnake[i].translation, whichSnake[i].translation, vec3.scale(temp, direction, speed));
+    whichSnake[i].x -= direction[0];
+    whichSnake[i].y += direction[1];
+    grid[whichSnake[i].x][whichSnake[i].y] = type;
+}
+function addSegment(x,y, translation, whichSnake, type){
+    var newTail = clone(cube);
+    whichSnake.push(newTail);
+    var newIndex = whichSnake.length-1;
+    loadSnakeSegment(whichSnake, newIndex);
+    whichSnake[newIndex].x = x;
+    whichSnake[newIndex].y = y;
+
+    whichSnake[newIndex].translation = translation;
+    grid[x][y] = type;
+}
+
+function enemyMove(){
+    if (enemySteps-- <= 0)
+        chooseEnemyDir();
+        enemySteps = Math.floor(Math.random() * 5);
+	var nextX = enemy[0].x - enemyDir[0];
+	var nextY = enemy[0].y + enemyDir[1];
+    var foundFood = false;
+	if (grid[nextX][nextY] >= 0){
+        console.log("found food");
+		foundFood = true;
+        var id = grid[nextX][nextY];
+		grid[nextX][nextY] = EMPTY;
+        for (var i = 0; i < food.length; i++)
+            if (id == food[i].id)
+                food.splice(i, 1);
+
+	}
+
+	if (/*nextX >= gridSize || nextY >= gridSize || nextY < 0 || nextX < 0 || */grid[nextX][nextY] != EMPTY){
+        initEnemy();
+		return;
+	}
+
+    var temp = vec3.create();
+    // move snake in current direction
+    var tail = clone(enemy[enemy.length - 1]);
+    var tailTranslation = vec3.clone(tail.translation);
+    var eaten = false;
+	grid[tail.x][tail.y] = EMPTY;
+    // move rest of enemy
+    for (var i = enemy.length - 1; i > 0; i--){
+        // get direction of previous enemy segment
+        //console.log(i, enemy[i])
+        var curr = vec3.fromValues(enemy[i].x, enemy[i].y, 0);
+        var prev = vec3.fromValues(enemy[i - 1].x, enemy[i - 1].y, 0);
+        var dirOfPrev = vec3.create();
+        vec3.sub(dirOfPrev, prev, curr);
+        dirOfPrev[0] *= -1; // flip the x
+        //console.log(curr, prev, dirOfPrev);
+        moveSegment(i, dirOfPrev, enemy, ENEMY);
+    }
+    moveSegment(0, enemyDir, enemy, ENEMY);
+    if (foundFood){
+        addSegment(tail.x, tail.y, tailTranslation, enemy, ENEMY);
+    }
+	//console.log(grid);
+}
+
 
 /* MAIN -- HERE is where execution begins after window load */
 
