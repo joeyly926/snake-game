@@ -306,20 +306,29 @@ function handleKeyDown(event){
         // change view
         case "w":
 			//vec3.add(eye,eye,vec3.scale(temp,lookUp,viewDelta));
-            currDir = snakeDir.UP;
+            if (!vec3.equals(currDir, snakeDir.DOWN))
+                currDir = snakeDir.UP;
             break;
         case "a":
 			//vec3.add(eye,eye,vec3.scale(temp,viewRight,-viewDelta));
-            currDir = snakeDir.LEFT;
+            if (!vec3.equals(currDir, snakeDir.RIGHT))
+                currDir = snakeDir.LEFT;
             break;
         case "s":
 			//vec3.add(eye,eye,vec3.scale(temp,lookUp,-viewDelta));
-            currDir = snakeDir.DOWN;
+            if (!vec3.equals(currDir, snakeDir.UP))
+                currDir = snakeDir.DOWN;
             break;
         case "d":
 			//vec3.add(eye,eye,vec3.scale(temp,viewRight,viewDelta));
-            currDir = snakeDir.RIGHT;
+            if (!vec3.equals(currDir, snakeDir.LEFT))
+                currDir = snakeDir.RIGHT;
             break;
+        case " ":
+            for (var i = 0; i < 20; i ++)
+                spawnFood();
+            break;
+        /*
         case "W":
             vec3.rotateX(lookAt, lookAt, eye, -viewDelta);
 			vec3.rotateX(lookUp, lookUp, eye, -viewDelta);
@@ -406,6 +415,8 @@ function handleKeyDown(event){
         case "P":
 			rotateModel(snake[currModelIndex], dir.ccw, zAxis);
 			break;
+        */
+
     }
 
 
@@ -1122,6 +1133,10 @@ function chooseEnemyDir(){
 
 function initEnemy(){
     enemyReset = true;
+    for (var i = 0; enemy && i < enemy.length; i++){
+      var e = enemy[i];
+      grid[e.x][e.y] = EMPTY;
+    }
     enemy =  [clone(cube)];
     let spots = [];
     for (var i = 1; i < grid.length - 1; i++)
@@ -1178,8 +1193,7 @@ function setupGame(){
         grid[i][0] = WALL;
         grid[i][grid.length-1] = WALL;
     }
-    for (var i = 0; i < 20; i ++)
-        spawnFood();
+
 	foodInterval = setInterval(spawnFood, 3000);
     snakeInterval = setInterval(snakeMove, 100); // sets up game logic
     enemyInterval = setInterval(enemyMove, 100);
@@ -1222,7 +1236,7 @@ function reset(){
     initSnake();
     initEnemy();
     spawnFood();
-	foodInterval = setInterval(spawnFood, 3000);
+	  foodInterval = setInterval(spawnFood, 3000);
     snakeInterval = setInterval(snakeMove, 100);
     enemyInterval = setInterval(enemyMove, 100);
 }
@@ -1244,7 +1258,7 @@ function snakeMove(){
 	}
 	if (/*nextX >= gridSize || nextY >= gridSize || nextY < 0 || nextX < 0 || */grid[nextX][nextY] != EMPTY){
         reset();
-		return;
+        return;
 	}
 
     var temp = vec3.create();
@@ -1300,7 +1314,6 @@ function enemyMove(){
 	var nextY = enemy[0].y + enemyDir[1];
     var foundFood = false;
 	if (grid[nextX][nextY] >= 0){
-        console.log("found food");
 		foundFood = true;
         var id = grid[nextX][nextY];
 		grid[nextX][nextY] = EMPTY;
