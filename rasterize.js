@@ -147,40 +147,40 @@ var cube_triangles = [
 
 const wall_vertices = [
     // Front face
-  [-8.0, 0.0,  0.0],
-   [8.0, 0.0,  0.0],
-   [8.0,  0.25,  0.0],
-  [-8.0,  0.25,  0.0],
+  [-6.0, 0.0,  0.0],
+   [6.0, 0.0,  0.0],
+   [6.0,  0.25,  0.0],
+  [-6.0,  0.25,  0.0],
 
   // Back face
-  [-8.0, 0.0, -0.25],
-  [-8.0,  0.25, -0.25],
-   [8.0,  0.25, -0.25],
-   [8.0, 0.0, -0.25],
+  [-6.0, 0.0, -0.25],
+  [-6.0,  0.25, -0.25],
+   [6.0,  0.25, -0.25],
+   [6.0, 0.0, -0.25],
 
   // Top face
-  [-8.0,  0.25, -0.25],
-  [-8.0,  0.25,  0.0],
-   [8.0,  0.25,  0.0],
-   [8.0,  0.25, -0.25],
+  [-6.0,  0.25, -0.25],
+  [-6.0,  0.25,  0.0],
+   [6.0,  0.25,  0.0],
+   [6.0,  0.25, -0.25],
 
   // Bottom face
-  [-8.0, 0.0, -0.25],
-   [8.0, 0.0, -0.25],
-   [8.0, 0.0,  0.0],
-  [-8.0, 0.0,  0.0],
+  [-6.0, 0.0, -0.25],
+   [6.0, 0.0, -0.25],
+   [6.0, 0.0,  0.0],
+  [-6.0, 0.0,  0.0],
 
   // Right face
-   [8.0, 0.0, -0.25],
-   [8.0,  0.25, -0.25],
-   [8.0,  0.25,  0.0],
-   [8.0, 0.0,  0.0],
+   [6.0, 0.0, -0.25],
+   [6.0,  0.25, -0.25],
+   [6.0,  0.25,  0.0],
+   [6.0, 0.0,  0.0],
 
   // Left face
-  [-8.0, 0.0, -0.25],
-  [-8.0, 0.0,  0.0],
-  [-8.0,  0.25,  0.0],
-  [-8.0,  0.25, -0.25],
+  [-6.0, 0.0, -0.25],
+  [-6.0, 0.0,  0.0],
+  [-6.0,  0.25,  0.0],
+  [-6.0,  0.25, -0.25],
   ];
 
 const wall_normals = [
@@ -232,11 +232,12 @@ var enemy;
 var enemyReset = false;
 var enemySteps;
 var food = [];
-var walls = [clone(wall), clone(wall), clone(wall), clone(wall)];
+var walls = [clone(cube), clone(cube), clone(cube), clone(cube)];
 
 var snakeDir = {"RIGHT":vec3.fromValues(-1,0,0), "LEFT":vec3.fromValues(1,0,0), "UP":vec3.fromValues(0,1,0), "DOWN":vec3.fromValues(0,-1,0)};
 var currDir = snakeDir.RIGHT;
 var enemyDir;
+var enemyPlayer = false;
 
 var snakeInterval;
 var enemyInterval;
@@ -306,27 +307,55 @@ function handleKeyDown(event){
         // change view
         case "w":
 			//vec3.add(eye,eye,vec3.scale(temp,lookUp,viewDelta));
-            if (!vec3.equals(currDir, snakeDir.DOWN))
+            if (snake.length == 1 || !vec3.equals(currDir, snakeDir.DOWN))
                 currDir = snakeDir.UP;
             break;
         case "a":
 			//vec3.add(eye,eye,vec3.scale(temp,viewRight,-viewDelta));
-            if (!vec3.equals(currDir, snakeDir.RIGHT))
+            if (snake.length == 1 || !vec3.equals(currDir, snakeDir.RIGHT))
                 currDir = snakeDir.LEFT;
             break;
         case "s":
 			//vec3.add(eye,eye,vec3.scale(temp,lookUp,-viewDelta));
-            if (!vec3.equals(currDir, snakeDir.UP))
+            if (snake.length == 1 || !vec3.equals(currDir, snakeDir.UP))
                 currDir = snakeDir.DOWN;
             break;
         case "d":
 			//vec3.add(eye,eye,vec3.scale(temp,viewRight,viewDelta));
-            if (!vec3.equals(currDir, snakeDir.LEFT))
+            if (snake.length == 1 || !vec3.equals(currDir, snakeDir.LEFT))
                 currDir = snakeDir.RIGHT;
             break;
         case " ":
             for (var i = 0; i < 20; i ++)
                 spawnFood();
+            break;
+        case "ArrowLeft":
+            if (!enemyPlayer){
+                enemyPlayer = true;
+            }
+            if (enemyPlayer && (enemy.length == 1 || !vec3.equals(enemyDir, snakeDir.RIGHT)))
+                enemyDir = snakeDir.LEFT;
+            break;
+        case "ArrowRight":
+            if (!enemyPlayer){
+                enemyPlayer = true;
+            }
+            if (enemyPlayer && (enemy.length == 1 || !vec3.equals(enemyDir, snakeDir.LEFT)))
+                enemyDir = snakeDir.RIGHT;
+            break;
+        case "ArrowUp":
+            if (!enemyPlayer){
+                enemyPlayer = true;
+            }
+            if (enemyPlayer && (enemy.length == 1 || !vec3.equals(enemyDir, snakeDir.DOWN)))
+                enemyDir = snakeDir.UP;
+            break;
+        case "ArrowDown":
+            if (!enemyPlayer){
+                enemyPlayer = true;
+            }
+            if (enemyPlayer && (enemy.length == 1 || !vec3.equals(enemyDir, snakeDir.UP)))
+                enemyDir = snakeDir.DOWN;
             break;
         /*
         case "W":
@@ -476,7 +505,7 @@ function loadSnakeSegment(whichSnake, whichSet){
     triBufferSize[whichSet] = 0;
 
     // initialize initial translation, rotation, scale values
-    whichSnake[whichSet].scale = vec3.create();
+    whichSnake[whichSet].scale = vec3.fromValues(1,1,1);
     whichSnake[whichSet].translation = vec3.fromValues(0,0,0);
     whichSnake[whichSet].xAxis = vec3.fromValues(1,0,0);
     whichSnake[whichSet].yAxis = vec3.fromValues(0,1,0);
@@ -564,7 +593,7 @@ function loadFood(whichSet){
     triBufferSize[whichSet] = 0;
 
     // initialize initial translation, rotation, scale values
-    food[whichSet].scale = vec3.create();
+    food[whichSet].scale = vec3.fromValues(1,1,1);
     food[whichSet].translation = vec3.fromValues(0,0,0);
     food[whichSet].xAxis = vec3.fromValues(1,0,0);
     food[whichSet].yAxis = vec3.fromValues(0,1,0);
@@ -665,7 +694,7 @@ function loadTriangles() {
                     triBufferSize[whichSet] = 0;
 
         			// initialize initial translation, rotation, scale values
-        			walls[whichSet].scale = vec3.create();
+        			walls[whichSet].scale = vec3.fromValues(1,1,1);
         			walls[whichSet].translation = vec3.fromValues(0,0,0);
         			walls[whichSet].xAxis = vec3.fromValues(1,0,0);
         			walls[whichSet].yAxis = vec3.fromValues(0,1,0);
@@ -901,7 +930,7 @@ function renderTriangles() {
         if (model.highlight){
             mat4.multiply(model.mMatrix, mat4.fromScaling(pos, vec3.fromValues(1.2, 1.2, 1.2)), model.mMatrix);
         }
-
+        mat4.multiply(model.mMatrix, mat4.fromScaling(pos, model.scale), model.mMatrix);
 		// create rotation model
 		mat4.set(
 			rotation,
@@ -914,6 +943,9 @@ function renderTriangles() {
 		mat4.multiply(model.mMatrix, rotation, model.mMatrix);
 
 		// move back to model's center
+
+
+
 		mat4.multiply(model.mMatrix, mat4.fromTranslation(pos, model.center), model.mMatrix);
         // apply interactive model translations
 		mat4.multiply(model.mMatrix, mat4.fromTranslation(pos, model.translation), model.mMatrix);
@@ -1106,12 +1138,20 @@ function loadTextures(){
 
 }
 function initSnake(){
-    grid[cubeStartX][cubeStartY] = PLAYER;
+    for (var i = 0; snake && i < snake.length; i++){
+      var e = snake[i];
+      grid[e.x][e.y] = EMPTY;
+    }
+    let spots = getEmptySpots();
+    let spot = spots[Math.floor(Math.random() * spots.length)]
+    grid[spot.x][spot.y] = PLAYER;
     snake =  [clone(cube)];
-    snake[0].x = cubeStartX;
-    snake[0].y = cubeStartY;
+    snake[0].x = spot.x;
+    snake[0].y = spot.y;
     loadSnakeSegment(snake, 0);
+    moveToPosition(snake, spot, 0);
     currDir = snakeDir.RIGHT;
+    console.log(snake[0].translation);
 }
 
 function chooseEnemyDir(){
@@ -1131,6 +1171,15 @@ function chooseEnemyDir(){
     enemyDir = nextDir;
 }
 
+function getEmptySpots(){
+    let spots = [];
+    for (var i = 1; i < grid.length - 1; i++)
+        for (var j = 1; j < grid[i].length - 1; j++)
+            if (grid[i][j] == EMPTY)
+                spots.push({'x':i, 'y': j});
+    return spots;
+}
+
 function initEnemy(){
     enemyReset = true;
     for (var i = 0; enemy && i < enemy.length; i++){
@@ -1138,11 +1187,7 @@ function initEnemy(){
       grid[e.x][e.y] = EMPTY;
     }
     enemy =  [clone(cube)];
-    let spots = [];
-    for (var i = 1; i < grid.length - 1; i++)
-        for (var j = 1; j < grid[i].length - 1; j++)
-            if (grid[i][j] == EMPTY)
-                spots.push({'x':i, 'y': j})
+    let spots = getEmptySpots();
     let spot = spots[Math.floor(Math.random() * spots.length)]
     grid[spot.x][spot.y] = ENEMY;
     enemy[0].x = spot.x;
@@ -1150,14 +1195,15 @@ function initEnemy(){
     loadSnakeSegment(enemy, 0);
     enemyDir = snakeDir.RIGHT;
     enemySteps = Math.floor(Math.random() * 5);
-    var temp = vec3.create();
+    moveToPosition(enemy, spot, 0);
+    enemyReset = false;
+}
 
-    // translate the enemy snake to spawn location
+function moveToPosition(whichSnake, spot, i){
+    var temp = vec3.create();
     var dest = vec3.create();
     vec3.subtract(dest, vec3.fromValues(gridSize - spot.x - 2, spot.y, 0), vec3.fromValues(cubeStartX,cubeStartY, 0));
-	vec3.add(enemy[0].translation, enemy[0].translation, vec3.scale(temp, dest, speed));
-
-    enemyReset = false;
+	vec3.add(whichSnake[i].translation, whichSnake[i].translation, vec3.scale(temp, dest, speed));
 }
 
 function setupGame(){
@@ -1179,13 +1225,22 @@ function setupGame(){
     console.log(enemy);
     var temp = vec3.create();
 
+    for (var i = 0; i < walls.length; i++){
+        walls[i].scale[0] = 32.0;
+    }
+
     vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, lookUp, 3.75));
     vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, lookUp, -4.0));
+    vec3.add(walls[0].translation, walls[0].translation, vec3.scale(temp, right, -0.125));
+    vec3.add(walls[1].translation, walls[1].translation, vec3.scale(temp, right, -0.125));
 
+    vec3.add(walls[2].translation, walls[2].translation, vec3.scale(temp, right, 3.75));
+    vec3.add(walls[3].translation, walls[3].translation, vec3.scale(temp, right, -4.0));
+    vec3.add(walls[2].translation, walls[2].translation, vec3.scale(temp, lookUp, -0.125));
+    vec3.add(walls[3].translation, walls[3].translation, vec3.scale(temp, lookUp, -0.125));
     rotateWall(walls[2], zAxis, Math.PI/2);
     rotateWall(walls[3], zAxis, Math.PI/2);
-    vec3.add(walls[2].translation, walls[2].translation, vec3.scale(temp, right, 3.875));
-    vec3.add(walls[3].translation, walls[3].translation, vec3.scale(temp, right, -3.875));
+
 
     for (var i = 0; i < grid.length; i++){
         grid[0][i] = WALL;
@@ -1256,10 +1311,13 @@ function snakeMove(){
                 food.splice(i, 1);
 
 	}
-	if (/*nextX >= gridSize || nextY >= gridSize || nextY < 0 || nextX < 0 || */grid[nextX][nextY] != EMPTY){
+	if (!enemyPlayer && grid[nextX][nextY] != EMPTY){
         reset();
         return;
-	}
+	} else if (grid[nextX][nextY] != EMPTY){
+        initSnake();
+        return;
+    }
 
     var temp = vec3.create();
     // move snake in current direction
@@ -1307,7 +1365,7 @@ function addSegment(x,y, translation, whichSnake, type){
 }
 
 function enemyMove(){
-    if (enemySteps-- <= 0)
+    if (!enemyPlayer && enemySteps-- <= 0)
         chooseEnemyDir();
         enemySteps = Math.floor(Math.random() * 5);
 	var nextX = enemy[0].x - enemyDir[0];
